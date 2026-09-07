@@ -6,6 +6,7 @@ import React, {
 import {
   CalendarPlus,
   Check,
+  Download,
   HeartPulse,
   MoreHorizontal,
   Plus,
@@ -22,6 +23,7 @@ import {
   subscribeNotes,
 } from '../services/notesService'
 import NoteModal from './NoteModal'
+import { exportNoteToPdf } from '../services/pdfService'
 
 const UNIVERSES = {
   personal: {
@@ -49,7 +51,7 @@ export default function NotesView({
   focusItemId = '',
   onFocusConsumed,
 }) {
-  const { firebaseUser } = useAuth()
+  const { firebaseUser, profile } = useAuth()
 
   const [notes, setNotes] = useState([])
   const [activeUniverse, setActiveUniverse] = useState('all')
@@ -140,6 +142,13 @@ export default function NotesView({
       note.id,
       item.id
     )
+  }
+
+  function handleExportPdf(note) {
+    exportNoteToPdf({
+      note,
+      ciriloId: profile?.ciriloId || 'Cirilo user',
+    })
   }
 
   return (
@@ -364,17 +373,23 @@ export default function NotesView({
                       : 'items'}
                   </span>
 
-                  <button
-                    onClick={() =>
-                      onShare({
-                        type: 'note',
-                        note,
-                      })
-                    }
-                  >
-                    <Share2 size={12} />
-                    Share list
-                  </button>
+                  <div className="note-card-footer-actions">
+                    <button onClick={() => handleExportPdf(note)} title="Export PDF">
+                      <Download size={12} />
+                      PDF
+                    </button>
+                    <button
+                      onClick={() =>
+                        onShare({
+                          type: 'note',
+                          note,
+                        })
+                      }
+                    >
+                      <Share2 size={12} />
+                      Share list
+                    </button>
+                  </div>
                 </footer>
               </article>
             )
