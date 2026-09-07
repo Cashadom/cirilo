@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn(){ return request.auth != null; }
+    function owner(uid){ return signedIn() && request.auth.uid == uid; }
+    match /users/{uid} {
+      allow create, read, update, delete: if owner(uid);
+      match /events/{id} { allow read, write: if owner(uid); }
+      match /inbox/{id} {
+        allow read, update, delete: if owner(uid);
+        allow create: if signedIn() && request.resource.data.senderUid == request.auth.uid && request.resource.data.type == 'event_share';
+      }
+    }
+    match /publicUsers/{ciriloId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    match /ciriloIds/{ciriloId} {
+      allow get: if signedIn(); allow list: if false;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+    match /sharedCards/{token} {
+      allow read: if resource.data.visibility == 'shared' && resource.data.revoked == false;
+      allow create: if signedIn() && request.resource.data.senderUid == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.senderUid == request.auth.uid;
+    }
+    match /publicEvents/{id} {
+      allow read: if true;
+      allow create, update, delete: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+    }
+    match /channels/{id} { allow read: if true; allow write: if signedIn(); }
+  }
+}
