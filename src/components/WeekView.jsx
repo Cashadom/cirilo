@@ -8,24 +8,26 @@ const START = 7 * 60
 const PX_PER_MINUTE = 1.05
 const GRID_HEIGHT = (22 - 7) * 60 * PX_PER_MINUTE
 
-function DayColumn({ day, events, onOpen, onCreate, onResize, onShare }) {
+function DayColumn({ day, columnIndex, events, onOpen, onCreate, onResize, onShare }) {
   const id = dateKey(day)
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <div
       ref={setNodeRef}
-      className={'day-column ' + (isOver ? 'is-over' : '')}
+      className={'day-column ' + (columnIndex % 2 === 1 ? 'day-column-alt ' : '') + (isOver ? 'is-over' : '')}
       style={{ height: GRID_HEIGHT }}
-      onDoubleClick={(e) => {
+      onClick={(e) => {
+        if (e.target.closest('.event-card, button, a, input, textarea, select')) return
         const rect = e.currentTarget.getBoundingClientRect()
         const y = Math.max(0, Math.min(rect.height, e.clientY - rect.top))
-        const minutes = Math.round((START + y / PX_PER_MINUTE) / 30) * 30
-        const hh = String(Math.floor(minutes / 60)).padStart(2,'0')
-        const mm = String(minutes % 60).padStart(2,'0')
+        const rawMinutes = START + y / PX_PER_MINUTE
+        const minutes = Math.max(START, Math.min((22 * 60) - 60, Math.round(rawMinutes / 30) * 30))
         const end = minutes + 60
+        const toTime = value => `${String(Math.floor(value / 60)).padStart(2,'0')}:${String(value % 60).padStart(2,'0')}`
         onCreate({
-          date: id, startTime: `${hh}:${mm}`,
-          endTime: `${String(Math.floor(end/60)).padStart(2,'0')}:${String(end%60).padStart(2,'0')}`
+          date: id,
+          startTime: toTime(minutes),
+          endTime: toTime(end),
         })
       }}
     >
@@ -61,12 +63,13 @@ export default function WeekView({ days, events, activeCats, onMove, onOpen, onC
           <div className="time-axis" style={{ height: GRID_HEIGHT }}>
             {HOURS.map(h => <span key={h} style={{ top: (h*60 - START)*PX_PER_MINUTE - 8 }}>{String(h).padStart(2,'0')}:00</span>)}
           </div>
-          {days.map(day => {
+          {days.map((day, index) => {
             const key = dateKey(day)
             return (
               <DayColumn
                 key={key}
                 day={day}
+                columnIndex={index}
                 events={events.filter(e => e.date === key && activeCats.has(e.category))}
                 onOpen={onOpen}
                 onCreate={onCreate}
