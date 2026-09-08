@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { updateUserProfile } from '../services/userService'
+import { subscribeRecentContacts } from '../services/recentContactsService'
 
 const CIRILO_AVATARS = [
   { id: 'avatar1', src: '/avatar1.png', label: 'Avatar 1' },
@@ -27,6 +28,8 @@ export default function ProfileView({
   onSaved,
   onOpenPublicProfile,
   onPlans,
+  onSendNote,
+  onProposeEvent,
 }) {
   const { firebaseUser } = useAuth()
   const [draft, setDraft] = useState(profile)
@@ -34,10 +37,26 @@ export default function ProfileView({
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [recentContacts, setRecentContacts] = useState([])
 
   useEffect(() => {
     setDraft(profile)
   }, [profile])
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) {
+      setRecentContacts([])
+      return undefined
+    }
+
+    return subscribeRecentContacts(
+      firebaseUser.uid,
+      setRecentContacts,
+      error => {
+        console.error('Could not load recent Cirilo contacts.', error)
+      }
+    )
+  }, [firebaseUser?.uid])
 
   const publicCount = useMemo(
     () =>
@@ -337,6 +356,58 @@ export default function ProfileView({
               </button>
             </>
           )}
+
+
+          <div className="profile-recent-contacts">
+            <div className="profile-recent-head">
+              <div>
+                <b>Recent Cirilo contacts</b>
+                <small>Your 6 latest Cirilo exchanges.</small>
+              </div>
+              <span>{recentContacts.length}</span>
+            </div>
+
+            {recentContacts.length ? (
+              <div className="profile-recent-list">
+                {recentContacts.map(contact => (
+                  <div
+                    className="profile-recent-contact"
+                    key={contact.ciriloId}
+                  >
+                    <span className="profile-recent-avatar">
+                      <img src="/icon.png" alt="" />
+                    </span>
+
+                    <span className="profile-recent-copy">
+                      <strong>{contact.ciriloId}</strong>
+                      <small>
+                        {contact.displayName || contact.name || 'Cirilo user'}
+                      </small>
+                    </span>
+
+                    <span className="profile-recent-actions">
+                      <button
+                        type="button"
+                        onClick={() => onSendNote?.(contact.ciriloId)}
+                      >
+                        Send a note
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onProposeEvent?.(contact.ciriloId)}
+                      >
+                        Propose an event
+                      </button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="profile-recent-empty">
+                No Cirilo exchanges yet.
+              </p>
+            )}
+          </div>
         </aside>
       </div>
     </section>

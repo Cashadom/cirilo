@@ -30,7 +30,7 @@ import { openBillingPortal, startProCheckout } from './services/stripeService'
 export default function App(){
   const {firebaseUser,profile:authProfile,loading:authLoading,logout,refreshProfile}=useAuth()
   const {events,addEvent,updateEvent,deleteEvent,resetDemo}=useCalendar()
-  const [anchor,setAnchor]=useState(new Date()),[activeCats,setActiveCats]=useState(new Set(Object.keys(CATEGORIES))),[modalOpen,setModalOpen]=useState(false),[draft,setDraft]=useState(null),[readOnly,setReadOnly]=useState(false),[view,setView]=useState(()=>new URLSearchParams(window.location.search).get('view')||'week'),[publicOpen,setPublicOpen]=useState(null),[shareOpen,setShareOpen]=useState(null),[publicProfileOpen,setPublicProfileOpen]=useState(false),[sharedToken,setSharedToken]=useState(()=>new URLSearchParams(window.location.search).get('share')),[noteShareOpen,setNoteShareOpen]=useState(null),[sharedNoteToken,setSharedNoteToken]=useState(()=>new URLSearchParams(window.location.search).get('sharedNote')),[focusNoteId,setFocusNoteId]=useState(''),[focusNoteItemId,setFocusNoteItemId]=useState('')
+  const [anchor,setAnchor]=useState(new Date()),[activeCats,setActiveCats]=useState(new Set(Object.keys(CATEGORIES))),[modalOpen,setModalOpen]=useState(false),[draft,setDraft]=useState(null),[readOnly,setReadOnly]=useState(false),[view,setView]=useState(()=>new URLSearchParams(window.location.search).get('view')||'week'),[publicOpen,setPublicOpen]=useState(null),[shareOpen,setShareOpen]=useState(null),[publicProfileOpen,setPublicProfileOpen]=useState(false),[sharedToken,setSharedToken]=useState(()=>new URLSearchParams(window.location.search).get('share')),[noteShareOpen,setNoteShareOpen]=useState(null),[sharedNoteToken,setSharedNoteToken]=useState(()=>new URLSearchParams(window.location.search).get('sharedNote')),[focusNoteId,setFocusNoteId]=useState(''),[focusNoteItemId,setFocusNoteItemId]=useState(''),[noteRecipientPrefill,setNoteRecipientPrefill]=useState('')
 
   const profile=useMemo(()=>({
     id:firebaseUser?.uid||'me',
@@ -93,6 +93,18 @@ export default function App(){
   },[firebaseUser,refreshProfile])
 
   const openNew=(prefill={})=>{const requestedDate=prefill.date||dateKey(days[0]);const safeDate=requestedDate<today?today:requestedDate;setReadOnly(false);setDraft({title:'',category:'pro',type:'event',date:safeDate,startTime:'09:00',endTime:'10:00',location:'',people:'',notes:'',reminder:'15 min before',priority:'normal',completed:false,visibility:'private',...prefill,date:safeDate});setModalOpen(true)}
+  const proposeEventToContact=ciriloId=>{
+    if(!ciriloId)return
+    openNew({
+      visibility:'shared',
+      invitedCiriloIds:[ciriloId],
+    })
+  }
+  const sendNoteToContact=ciriloId=>{
+    if(!ciriloId)return
+    setNoteRecipientPrefill(ciriloId)
+    setView('notes')
+  }
   const openEdit=event=>{if(event.sourceNoteId){setFocusNoteId(event.sourceNoteId);setFocusNoteItemId(event.sourceNoteItemId||'');setView('notes');return}setReadOnly(false);setDraft(event);setModalOpen(true)},openArchive=event=>{setReadOnly(true);setDraft(event);setModalOpen(true)}
   const noteToWeek=({noteId,noteTitle,universe,item})=>{
     const category=
@@ -109,6 +121,29 @@ export default function App(){
       visibility:'private',
       sourceNoteId:noteId,
       sourceNoteItemId:item?.id||'',
+      sourceNoteTitle:noteTitle||'',
+    })
+  }
+  const noteToEvent=({noteId,noteTitle,universe,items=[]})=>{
+    const category=
+      universe==='pro'?'pro':
+      universe==='study'?'tasks':
+      universe==='health'?'personal':
+      'personal'
+
+    const noteBody=(items||[])
+      .map(item=>String(item?.text||'').trim())
+      .filter(Boolean)
+      .join('\n')
+
+    openNew({
+      title:noteTitle||'Saved note',
+      category,
+      type:'event',
+      notes:noteBody,
+      visibility:'private',
+      sourceNoteId:noteId,
+      sourceNoteItemId:'',
       sourceNoteTitle:noteTitle||'',
     })
   }
@@ -165,7 +200,7 @@ export default function App(){
 
   if(publicProfileOpen)return <div className="app"><SeoMeta {...seo}/><PublicProfilePage profile={profile} events={myPublicEvents} onBack={()=>setPublicProfileOpen(false)} onAdd={addPublicToWeek} onOpen={setPublicOpen}/><PublicEventPage event={publicOpen} onClose={()=>setPublicOpen(null)} onAdd={addPublicToWeek}/></div>
 
-  return <div className="app"><SeoMeta {...seo}/><header className="topbar"><div className="brand"><img src="/logo.png" alt="Cirilo"/></div><nav className="main-tabs" aria-label="Main navigation"><button className={view==='week'?'active':''} onClick={()=>setView('week')}><CalendarDays size={15}/> Week</button><button className={view==='discover'?'active':''} onClick={()=>setView('discover')}><Compass size={15}/> Discover</button><button className={view==='tasks'?'active':''} onClick={()=>setView('tasks')}><ListTodo size={15}/> Tasks</button><button className={view==='notes'?'active':''} onClick={()=>setView('notes')}><BookOpenText size={15}/> Notes</button><button className={view==='inbox'?'active':''} onClick={()=>setView('inbox')}><Inbox size={15}/> Inbox</button><button className={view==='archive'?'active':''} onClick={()=>setView('archive')}><Archive size={15}/> Archive</button><button className={view==='profile'?'active':''} onClick={()=>setView('profile')}><UserRound size={15}/> Profile</button><button className={view==='plans'?'active':''} onClick={()=>setView('plans')}><WalletCards size={15}/> Plans</button></nav><div className="top-actions"><button className="account-chip" onClick={()=>setView('profile')}>{profile.photoURL?<img src={profile.photoURL} alt=""/>:<span>{profile.name.charAt(0)}</span>}<small>{profile.ciriloId}</small></button><button className="secondary-btn compact" onClick={resetDemo}><RotateCcw size={15}/> Demo</button><button className="primary-btn" onClick={()=>openNew()}><Plus size={17}/> New item</button><button className="icon-btn" title="Sign out" onClick={logout}><LogOut size={16}/></button></div></header><main>{view==='week'&&<><section className="control-row"><div className="control-copy"><span className="eyebrow">Your week</span><span className="control-subtitle">Work, people and tasks in one calm view.</span></div><QuickAdd onAdd={openNew}/></section><section className="toolbar"><div className="week-nav"><button className="icon-btn" onClick={()=>setAnchor(subWeeks(anchor,1))}><ChevronLeft size={19}/></button><button className="today-btn" onClick={()=>setAnchor(new Date())}><CalendarDays size={16}/> Today</button><button className="icon-btn" onClick={()=>setAnchor(addWeeks(anchor,1))}><ChevronRight size={19}/></button><span className="week-range">{format(days[0],'MMM d')} — {format(days[6],'MMM d, yyyy')}</span></div><div className="category-filters">{Object.entries(CATEGORIES).map(([key,cat])=><button key={key} className={activeCats.has(key)?'active':''} onClick={()=>toggleCategory(key)}><i style={{background:cat.color}}/>{cat.label}</button>)}</div></section><section className="workspace"><div className="calendar-wrap"><WeekView days={days} events={liveEvents} activeCats={activeCats} onMove={(id,date)=>{if(date>=today)updateEvent({id,date})}} onOpen={openEdit} onCreate={openNew} onResize={resize} onShare={setShareOpen}/></div><WeekSummary events={weekEvents}/></section></>}{view==='discover'&&<DiscoverView events={[...myPublicEvents,...discoveryEvents]} onAdd={addPublicToWeek} onOpen={setPublicOpen}/>} {view==='archive'&&<ArchiveView events={archivedEvents} onOpen={openArchive}/>} {view==='profile'&&<ProfileView profile={profile} plan={plan} publicEvents={myPublicEvents} onSaved={refreshProfile} onOpenPublicProfile={()=>setPublicProfileOpen(true)} onPlans={()=>setView('plans')}/>} {view==='plans'&&<PlansView
+  return <div className="app"><SeoMeta {...seo}/><header className="topbar"><div className="brand"><img src="/logo.png" alt="Cirilo"/></div><nav className="main-tabs" aria-label="Main navigation"><button className={view==='week'?'active':''} onClick={()=>setView('week')}><CalendarDays size={15}/> Week</button><button className={view==='discover'?'active':''} onClick={()=>setView('discover')}><Compass size={15}/> Discover</button><button className={view==='tasks'?'active':''} onClick={()=>setView('tasks')}><ListTodo size={15}/> Tasks</button><button className={view==='notes'?'active':''} onClick={()=>setView('notes')}><BookOpenText size={15}/> Notes</button><button className={view==='inbox'?'active':''} onClick={()=>setView('inbox')}><Inbox size={15}/> Inbox</button><button className={view==='archive'?'active':''} onClick={()=>setView('archive')}><Archive size={15}/> Archive</button><button className={view==='profile'?'active':''} onClick={()=>setView('profile')}><UserRound size={15}/> Profile</button><button className={view==='plans'?'active':''} onClick={()=>setView('plans')}><WalletCards size={15}/> Plans</button></nav><div className="top-actions"><button className="account-chip" onClick={()=>setView('profile')}>{profile.photoURL?<img src={profile.photoURL} alt=""/>:<span>{profile.name.charAt(0)}</span>}<small>{profile.ciriloId}</small></button><button className="secondary-btn compact" onClick={resetDemo}><RotateCcw size={15}/> Demo</button><button className="primary-btn" onClick={()=>openNew()}><Plus size={17}/> New item</button><button className="icon-btn" title="Sign out" onClick={logout}><LogOut size={16}/></button></div></header><main>{view==='week'&&<><section className="control-row"><div className="control-copy"><span className="eyebrow">Your week</span><span className="control-subtitle">Work, people and tasks in one calm view.</span></div><QuickAdd onAdd={openNew}/></section><section className="toolbar"><div className="week-nav"><button className="icon-btn" onClick={()=>setAnchor(subWeeks(anchor,1))}><ChevronLeft size={19}/></button><button className="today-btn" onClick={()=>setAnchor(new Date())}><CalendarDays size={16}/> Today</button><button className="icon-btn" onClick={()=>setAnchor(addWeeks(anchor,1))}><ChevronRight size={19}/></button><span className="week-range">{format(days[0],'MMM d')} — {format(days[6],'MMM d, yyyy')}</span></div><div className="category-filters">{Object.entries(CATEGORIES).map(([key,cat])=><button key={key} className={activeCats.has(key)?'active':''} onClick={()=>toggleCategory(key)}><i style={{background:cat.color}}/>{cat.label}</button>)}</div></section><section className="workspace"><div className="calendar-wrap"><WeekView days={days} events={liveEvents} activeCats={activeCats} onMove={(id,date)=>{if(date>=today)updateEvent({id,date})}} onOpen={openEdit} onCreate={openNew} onResize={resize} onShare={setShareOpen}/></div><WeekSummary events={weekEvents}/></section></>}{view==='discover'&&<DiscoverView events={[...myPublicEvents,...discoveryEvents]} onAdd={addPublicToWeek} onOpen={setPublicOpen}/>} {view==='archive'&&<ArchiveView events={archivedEvents} onOpen={openArchive}/>} {view==='profile'&&<ProfileView profile={profile} plan={plan} publicEvents={myPublicEvents} onSaved={refreshProfile} onOpenPublicProfile={()=>setPublicProfileOpen(true)} onPlans={()=>setView('plans')} onSendNote={sendNoteToContact} onProposeEvent={proposeEventToContact}/>} {view==='plans'&&<PlansView
   plan={plan}
   onChoose={async choice=>{
     if(choice==='pro'){
@@ -185,7 +220,7 @@ export default function App(){
       return
     }
   }}
-/>} {view==='notes'&&<NotesView onAddToWeek={noteToWeek} onShare={setNoteShareOpen} focusNoteId={focusNoteId} focusItemId={focusNoteItemId} onFocusConsumed={()=>{setFocusNoteId('');setFocusNoteItemId('')}}/>} {view==='inbox'&&<InboxView addEvent={addEvent} onNoteToWeek={noteToWeek} onShareNoteItem={setNoteShareOpen}/>} {view==='tasks'&&<section className="tasks-view"><div className="tasks-intro"><span className="eyebrow">Tasks</span><h2>Things that still need your attention.</h2></div><div className="task-list">{taskEvents.length===0?<p className="empty-state">No tasks yet.</p>:taskEvents.map(task=><button key={task.id} className="task-row" onClick={()=>openEdit(task)}><i style={{background:CATEGORIES[task.category].color}}/><span><span>{task.title}</span><small>{task.date} · {task.startTime}</small></span><span>{task.completed?'Done':'Open'}</span></button>)}</div></section>}</main><EventModal open={modalOpen} draft={draft} readOnly={readOnly} canPublishPublic={canPublishPublic} onUpgrade={()=>{setModalOpen(false);setView('plans')}} onClose={()=>setModalOpen(false)} onSave={async payload=>{
+/>} {view==='notes'&&<NotesView onAddToWeek={noteToWeek} onSendToEvent={noteToEvent} onShare={setNoteShareOpen} focusNoteId={focusNoteId} focusItemId={focusNoteItemId} recipientPrefill={noteRecipientPrefill} onRecipientPrefillConsumed={()=>setNoteRecipientPrefill('')} onFocusConsumed={()=>{setFocusNoteId('');setFocusNoteItemId('')}}/>} {view==='inbox'&&<InboxView addEvent={addEvent} onNoteToWeek={noteToWeek} onShareNoteItem={setNoteShareOpen}/>} {view==='tasks'&&<section className="tasks-view"><div className="tasks-intro"><span className="eyebrow">Tasks</span><h2>Things that still need your attention.</h2></div><div className="task-list">{taskEvents.length===0?<p className="empty-state">No tasks yet.</p>:taskEvents.map(task=><button key={task.id} className="task-row" onClick={()=>openEdit(task)}><i style={{background:CATEGORIES[task.category].color}}/><span><span>{task.title}</span><small>{task.date} · {task.startTime}</small></span><span>{task.completed?'Done':'Open'}</span></button>)}</div></section>}</main><EventModal open={modalOpen} draft={draft} readOnly={readOnly} canPublishPublic={canPublishPublic} onUpgrade={()=>{setModalOpen(false);setView('plans')}} onClose={()=>setModalOpen(false)} onSave={async payload=>{
   if(payload.visibility==='public'&&!canPublishPublic){
     setModalOpen(false)
     setView('plans')

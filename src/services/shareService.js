@@ -7,8 +7,9 @@ import {
   setDoc,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { getSharePolicy } from './sharePermissions'
 
-const CIRILO_ID_RE = /^cirilo_\d{6}$/i
+const CIRILO_ID_RE = /^cirilo_\d{6,10}$/i
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function createSecureToken() {
@@ -37,34 +38,26 @@ async function resolveSender({
   let resolvedPhotoURL = photoURL || ''
 
   if (uid) {
-    const userSnap = await getDoc(
-      doc(db, 'users', uid)
-    )
+    const userSnap = await getDoc(doc(db, 'users', uid))
 
     if (userSnap.exists()) {
       const data = userSnap.data()
 
       if (!CIRILO_ID_RE.test(resolvedCiriloId)) {
-        resolvedCiriloId =
-          normalizeCiriloId(data.ciriloId)
+        resolvedCiriloId = normalizeCiriloId(data.ciriloId)
       }
 
       if (!resolvedDisplayName) {
-        resolvedDisplayName =
-          data.displayName || ''
+        resolvedDisplayName = data.displayName || ''
       }
 
       if (!resolvedPhotoURL) {
-        resolvedPhotoURL =
-          data.photoURL || ''
+        resolvedPhotoURL = data.photoURL || ''
       }
     }
   }
 
-  if (
-    CIRILO_ID_RE.test(resolvedCiriloId) &&
-    !resolvedPhotoURL
-  ) {
+  if (CIRILO_ID_RE.test(resolvedCiriloId) && !resolvedPhotoURL) {
     const publicSnap = await getDoc(
       doc(db, 'publicUsers', resolvedCiriloId)
     )
@@ -73,48 +66,47 @@ async function resolveSender({
       const data = publicSnap.data()
 
       if (!resolvedDisplayName) {
-        resolvedDisplayName =
-          data.displayName || ''
+        resolvedDisplayName = data.displayName || ''
       }
 
       if (!resolvedPhotoURL) {
-        resolvedPhotoURL =
-          data.photoURL || ''
+        resolvedPhotoURL = data.photoURL || ''
       }
     }
   }
 
   if (!CIRILO_ID_RE.test(resolvedCiriloId)) {
-    throw new Error(
-      'Your Cirilo ID could not be resolved.'
-    )
+    throw new Error('Your Cirilo ID could not be resolved.')
   }
 
   return {
     uid,
     ciriloId: resolvedCiriloId,
-    displayName:
-      resolvedDisplayName || 'Cirilo user',
+    displayName: resolvedDisplayName || 'Cirilo user',
     photoURL: resolvedPhotoURL || '',
   }
 }
 
 export function parseCiriloRecipients(value = '') {
-  return [...new Set(
-    value
-      .split(/[,\n;]+/)
-      .map(normalizeCiriloId)
-      .filter(Boolean)
-  )]
+  return [
+    ...new Set(
+      value
+        .split(/[,\n;]+/)
+        .map(normalizeCiriloId)
+        .filter(Boolean)
+    ),
+  ]
 }
 
 export function parseEmailRecipients(value = '') {
-  return [...new Set(
-    value
-      .split(/[,\n;]+/)
-      .map(normalizeEmail)
-      .filter(Boolean)
-  )]
+  return [
+    ...new Set(
+      value
+        .split(/[,\n;]+/)
+        .map(normalizeEmail)
+        .filter(Boolean)
+    ),
+  ]
 }
 
 export function validateCiriloRecipients(ids = []) {
@@ -129,20 +121,52 @@ export async function resolveCiriloId(ciriloId) {
   const cleanId = normalizeCiriloId(ciriloId)
 
   if (!CIRILO_ID_RE.test(cleanId)) {
-    throw new Error(
-      `Invalid Cirilo ID: ${cleanId || 'empty'}`
-    )
+    throw new Error(`Invalid Cirilo ID: ${cleanId || 'empty'}`)
   }
 
-  const snapshot = await getDoc(
-    doc(db, 'publicUsers', cleanId)
-  )
+  const snapshot = await getDoc(doc(db, 'publicUsers', cleanId))
 
   if (!snapshot.exists()) {
     throw new Error(`Cirilo ID not found: ${cleanId}`)
   }
 
   return snapshot.data()
+}
+
+function eventSnapshot(event, sender) {
+  const sharePolicy = getSharePolicy(event)
+
+  return {
+    title: event.title,
+    category: event.category,
+    type: event.type || 'event',
+    date: event.date,
+    startTime: event.startTime,
+    endTime: event.endTime,
+    location: event.location || '',
+    notes: event.notes || '',
+    reminder: event.reminder || '15 min before',
+    priority: event.priority || 'normal',
+    visibility: event.visibility || 'private',
+    sharePolicy,
+
+    createdByUid: event.createdByUid || sender.uid,
+    createdByCiriloId:
+      event.createdByCiriloId || sender.ciriloId,
+    createdByName: event.createdByName || sender.displayName,
+    createdByPhotoURL:
+      event.createdByPhotoURL || sender.photoURL,
+
+    originalSenderUid:
+      event.originalSenderUid || event.createdByUid || sender.uid,
+    originalSenderCiriloId:
+      event.originalSenderCiriloId ||
+      event.createdByCiriloId ||
+      sender.ciriloId,
+
+    invitedCiriloIds: event.invitedCiriloIds || [],
+    invitedEmails: event.invitedEmails || [],
+  }
 }
 
 export async function shareEventToCirilo({
@@ -160,17 +184,14 @@ export async function shareEventToCirilo({
     photoURL: senderPhotoURL,
   })
 
-  const cleanRecipientId =
-    normalizeCiriloId(recipientCiriloId)
-
-  const recipient =
-    await resolveCiriloId(cleanRecipientId)
+  const cleanRecipientId = normalizeCiriloId(recipientCiriloId)
+  const recipient = await resolveCiriloId(cleanRecipientId)
 
   if (recipient.uid === sender.uid) {
-    throw new Error(
-      'You cannot send an invitation to yourself.'
-    )
+    throw new Error('You cannot send an invitation to yourself.')
   }
+
+  const snapshot = eventSnapshot(event, sender)
 
   const payload = {
     type: 'event_share',
@@ -180,44 +201,23 @@ export async function shareEventToCirilo({
     senderName: sender.displayName,
     senderPhotoURL: sender.photoURL,
 
+    originalSenderUid: snapshot.originalSenderUid,
+    originalSenderCiriloId: snapshot.originalSenderCiriloId,
+    forwardedByCiriloId:
+      snapshot.originalSenderCiriloId !== sender.ciriloId
+        ? sender.ciriloId
+        : '',
+
     recipientCiriloId: cleanRecipientId,
     status: 'new',
-
-    event: {
-      title: event.title,
-      category: event.category,
-      type: event.type || 'event',
-      date: event.date,
-      startTime: event.startTime,
-      endTime: event.endTime,
-      location: event.location || '',
-      notes: event.notes || '',
-      reminder:
-        event.reminder || '15 min before',
-      priority:
-        event.priority || 'normal',
-
-      createdByUid: sender.uid,
-      createdByCiriloId: sender.ciriloId,
-      createdByName: sender.displayName,
-      createdByPhotoURL: sender.photoURL,
-
-      invitedCiriloIds:
-        event.invitedCiriloIds || [],
-      invitedEmails:
-        event.invitedEmails || [],
-    },
-
+    sharePolicy: snapshot.sharePolicy,
+    receivedSnapshot: true,
+    event: snapshot,
     createdAt: serverTimestamp(),
   }
 
   const inviteRef = await addDoc(
-    collection(
-      db,
-      'users',
-      recipient.uid,
-      'inbox'
-    ),
+    collection(db, 'users', recipient.uid, 'inbox'),
     payload
   )
 
@@ -236,16 +236,16 @@ export async function shareEventToCiriloMany({
   recipientCiriloIds,
   event,
 }) {
-  const cleanIds = [...new Set(
-    (recipientCiriloIds || [])
-      .map(normalizeCiriloId)
-      .filter(Boolean)
-  )]
+  const cleanIds = [
+    ...new Set(
+      (recipientCiriloIds || [])
+        .map(normalizeCiriloId)
+        .filter(Boolean)
+    ),
+  ]
 
   if (!validateCiriloRecipients(cleanIds)) {
-    throw new Error(
-      'One or more Cirilo IDs are invalid.'
-    )
+    throw new Error('One or more Cirilo IDs are invalid.')
   }
 
   return Promise.all(
@@ -262,11 +262,7 @@ export async function shareEventToCiriloMany({
   )
 }
 
-export async function shareToCiriloId({
-  sender,
-  ciriloId,
-  event,
-}) {
+export async function shareToCiriloId({ sender, ciriloId, event }) {
   if (!sender?.uid) {
     throw new Error('Missing sender account.')
   }
@@ -274,10 +270,8 @@ export async function shareToCiriloId({
   return shareEventToCirilo({
     senderUid: sender.uid,
     senderCiriloId: sender.ciriloId,
-    senderName:
-      sender.displayName || 'Cirilo user',
-    senderPhotoURL:
-      sender.photoURL || '',
+    senderName: sender.displayName || 'Cirilo user',
+    senderPhotoURL: sender.photoURL || '',
     recipientCiriloId: ciriloId,
     event,
   })
@@ -291,9 +285,7 @@ export async function createEmailShare({
   const email = normalizeEmail(recipientEmail)
 
   if (!EMAIL_RE.test(email)) {
-    throw new Error(
-      `Invalid email address: ${email || 'empty'}`
-    )
+    throw new Error(`Invalid email address: ${email || 'empty'}`)
   }
 
   if (!sender?.uid) {
@@ -308,52 +300,26 @@ export async function createEmailShare({
   })
 
   const token = createSecureToken()
+  const snapshot = eventSnapshot(event, resolvedSender)
 
-  await setDoc(
-    doc(db, 'sharedCards', token),
-    {
-      token,
+  await setDoc(doc(db, 'sharedCards', token), {
+    token,
 
-      senderUid: resolvedSender.uid,
-      senderCiriloId:
-        resolvedSender.ciriloId,
-      senderName:
-        resolvedSender.displayName,
-      senderPhotoURL:
-        resolvedSender.photoURL,
+    senderUid: resolvedSender.uid,
+    senderCiriloId: resolvedSender.ciriloId,
+    senderName: resolvedSender.displayName,
+    senderPhotoURL: resolvedSender.photoURL,
 
-      recipientEmail: email,
+    originalSenderUid: snapshot.originalSenderUid,
+    originalSenderCiriloId: snapshot.originalSenderCiriloId,
+    sharePolicy: snapshot.sharePolicy,
 
-      visibility: 'shared',
-      revoked: false,
-
-      event: {
-        title: event.title,
-        category: event.category,
-        type: event.type || 'event',
-        date: event.date,
-        startTime: event.startTime,
-        endTime: event.endTime,
-        location: event.location || '',
-        notes: event.notes || '',
-        reminder:
-          event.reminder || '15 min before',
-        priority:
-          event.priority || 'normal',
-
-        createdByUid:
-          resolvedSender.uid,
-        createdByCiriloId:
-          resolvedSender.ciriloId,
-        createdByName:
-          resolvedSender.displayName,
-        createdByPhotoURL:
-          resolvedSender.photoURL,
-      },
-
-      createdAt: serverTimestamp(),
-    }
-  )
+    recipientEmail: email,
+    visibility: snapshot.visibility,
+    revoked: false,
+    event: snapshot,
+    createdAt: serverTimestamp(),
+  })
 
   const shareUrl =
     `${window.location.origin}/?share=${encodeURIComponent(token)}`
@@ -370,16 +336,16 @@ export async function createEmailSharesMany({
   recipientEmails,
   event,
 }) {
-  const cleanEmails = [...new Set(
-    (recipientEmails || [])
-      .map(normalizeEmail)
-      .filter(Boolean)
-  )]
+  const cleanEmails = [
+    ...new Set(
+      (recipientEmails || [])
+        .map(normalizeEmail)
+        .filter(Boolean)
+    ),
+  ]
 
   if (!validateEmailRecipients(cleanEmails)) {
-    throw new Error(
-      'One or more email addresses are invalid.'
-    )
+    throw new Error('One or more email addresses are invalid.')
   }
 
   return Promise.all(
@@ -409,10 +375,7 @@ export function openEmailClientForShares({
   )
 
   const links = shares
-    .map(
-      (share) =>
-        `${share.recipientEmail}: ${share.shareUrl}`
-    )
+    .map((share) => `${share.recipientEmail}: ${share.shareUrl}`)
     .join('\n')
 
   const body = encodeURIComponent(

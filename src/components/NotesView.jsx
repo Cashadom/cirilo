@@ -1,13 +1,11 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import {
   CalendarPlus,
-  Check,
+  ChevronDown,
+  ChevronUp,
   Download,
   HeartPulse,
+  Lock,
   MoreHorizontal,
   Plus,
   Share2,
@@ -22,42 +20,38 @@ import {
   saveNote,
   subscribeNotes,
 } from '../services/notesService'
+import {
+  canEditOriginal,
+  canForward,
+  getSharePolicy,
+  isClosedEntity,
+  isReceivedEntity,
+} from '../services/sharePermissions'
 import NoteModal from './NoteModal'
 import { exportNoteToPdf } from '../services/pdfService'
 
 const UNIVERSES = {
-  personal: {
-    label: 'Personal',
-    icon: UserRound,
-  },
-  pro: {
-    label: 'Pro',
-    icon: BriefcaseBusiness,
-  },
-  study: {
-    label: 'Study',
-    icon: GraduationCap,
-  },
-  health: {
-    label: 'Health',
-    icon: Stethoscope,
-  },
+  personal: { label: 'Personal', icon: UserRound },
+  pro: { label: 'Pro', icon: BriefcaseBusiness },
+  study: { label: 'Study', icon: GraduationCap },
+  health: { label: 'Health', icon: Stethoscope },
 }
 
 export default function NotesView({
   onAddToWeek,
+  onSendToEvent,
   onShare,
   focusNoteId = '',
   focusItemId = '',
   onFocusConsumed,
 }) {
   const { firebaseUser, profile } = useAuth()
-
   const [notes, setNotes] = useState([])
   const [activeUniverse, setActiveUniverse] = useState('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [modalFocusItemId, setModalFocusItemId] = useState('')
+  const [expandedIds, setExpandedIds] = useState(() => new Set())
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -71,10 +65,7 @@ export default function NotesView({
       },
       (err) => {
         console.error(err)
-        setError(
-          err?.message ||
-          'Could not load your Notes.'
-        )
+        setError(err?.message || 'Could not load your Notes.')
       }
     )
   }, [firebaseUser])
@@ -82,10 +73,7 @@ export default function NotesView({
   useEffect(() => {
     if (!focusNoteId || !notes.length) return
 
-    const note = notes.find(
-      (candidate) => candidate.id === focusNoteId
-    )
-
+    const note = notes.find((candidate) => candidate.id === focusNoteId)
     if (!note) return
 
     setActiveUniverse('all')
@@ -93,21 +81,13 @@ export default function NotesView({
     setModalFocusItemId(focusItemId || '')
     setModalOpen(true)
     onFocusConsumed?.()
-  }, [
-    focusNoteId,
-    focusItemId,
-    notes,
-    onFocusConsumed,
-  ])
+  }, [focusNoteId, focusItemId, notes, onFocusConsumed])
 
   const visible = useMemo(
     () =>
       activeUniverse === 'all'
         ? notes
-        : notes.filter(
-            (note) =>
-              note.universe === activeUniverse
-          ),
+        : notes.filter((note) => note.universe === activeUniverse),
     [notes, activeUniverse]
   )
 
@@ -123,6 +103,15 @@ export default function NotesView({
     setModalOpen(true)
   }
 
+  const toggleExpanded = (noteId) => {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (next.has(noteId)) next.delete(noteId)
+      else next.add(noteId)
+      return next
+    })
+  }
+
   function handleAddToWeek(note, item) {
     if (item.kind === 'text') return
 
@@ -131,17 +120,27 @@ export default function NotesView({
       noteTitle: note.title,
       universe: note.universe,
       item,
+      sourceCiriloId:
+        note.originalSenderCiriloId || note.senderCiriloId || '',
+    })
+  }
+
+  function handleSendToEvent(note) {
+    onSendToEvent?.({
+      noteId: note.id,
+      noteTitle: note.title,
+      universe: note.universe,
+      items: note.items || [],
+      sourceCiriloId:
+        note.originalSenderCiriloId || note.senderCiriloId || '',
     })
   }
 
   async function handleDone(note, item) {
     if (item.kind === 'text') return
+    if (!canEditOriginal(note, firebaseUser.uid)) return
 
-    await markNoteItemDone(
-      firebaseUser.uid,
-      note.id,
-      item.id
-    )
+    await markNoteItemDone(firebaseUser.uid, note.id, item.id)
   }
 
   function handleExportPdf(note) {
@@ -155,25 +154,15 @@ export default function NotesView({
     <section className="notes-view">
       <div className="notes-intro">
         <div>
-          <span className="eyebrow">
-            Notes
-          </span>
-
-          <h2>
-            Save it now. Decide when later.
-          </h2>
-
+          <span className="eyebrow">Notes</span>
+          <h2>Save it now. Decide when later.</h2>
           <p>
-            Movies, books, training, shopping,
-            study and health things you do not want
-            to forget.
+            Movies, books, training, shopping, study and health things you do
+            not want to forget.
           </p>
         </div>
 
-        <button
-          className="primary-btn"
-          onClick={openNew}
-        >
+        <button className="primary-btn" onClick={openNew}>
           <Plus size={16} />
           New list
         </button>
@@ -181,214 +170,233 @@ export default function NotesView({
 
       <div className="notes-universe-tabs">
         <button
-          className={
-            activeUniverse === 'all'
-              ? 'active'
-              : ''
-          }
-          onClick={() =>
-            setActiveUniverse('all')
-          }
+          className={activeUniverse === 'all' ? 'active' : ''}
+          onClick={() => setActiveUniverse('all')}
         >
           All
         </button>
 
-        {Object.entries(UNIVERSES).map(
-          ([key, data]) => {
-            const Icon = data.icon
-
-            return (
-              <button
-                key={key}
-                className={
-                  activeUniverse === key
-                    ? 'active'
-                    : ''
-                }
-                onClick={() =>
-                  setActiveUniverse(key)
-                }
-              >
-                <Icon size={13} />
-                {data.label}
-              </button>
-            )
-          }
-        )}
+        {Object.entries(UNIVERSES).map(([key, data]) => {
+          const Icon = data.icon
+          return (
+            <button
+              key={key}
+              className={activeUniverse === key ? 'active' : ''}
+              onClick={() => setActiveUniverse(key)}
+            >
+              <Icon size={13} />
+              {data.label}
+            </button>
+          )
+        })}
       </div>
 
-      {error && (
-        <div className="form-error">
-          {error}
-        </div>
-      )}
+      {error && <div className="form-error">{error}</div>}
 
       {!visible.length ? (
         <div className="notes-empty">
           <HeartPulse size={22} />
-          <p>
-            Nothing saved here yet.
-          </p>
-
-          <button
-            className="secondary-btn"
-            onClick={openNew}
-          >
+          <p>Nothing saved here yet.</p>
+          <button className="secondary-btn" onClick={openNew}>
             Create your first list
           </button>
         </div>
       ) : (
         <div className="notes-grid">
           {visible.map((note) => {
-            const universe =
-              UNIVERSES[note.universe] ||
-              UNIVERSES.personal
-
+            const universe = UNIVERSES[note.universe] || UNIVERSES.personal
             const Icon = universe.icon
-
-            const visibleBlocks = note.items.filter(
-              (block) =>
-                block.kind === 'text' ||
-                block.status !== 'done'
+            const expanded = expandedIds.has(note.id)
+            const received = isReceivedEntity(note)
+            const senderCiriloId =
+              note.originalSenderCiriloId ||
+              note.senderCiriloId ||
+              note.sharedByCiriloId ||
+              note.sharedBy ||
+              ''
+            const senderPhotoURL =
+              note.senderPhotoURL ||
+              note.sharedByPhotoURL ||
+              ''
+            const closed = isClosedEntity(note)
+            const editable = canEditOriginal(note, firebaseUser.uid)
+            const forwardable = canForward(note, firebaseUser.uid)
+            const blocks = (note.items || []).filter(
+              (block) => block.kind === 'text' || block.status !== 'done'
             )
-
-            const actionableCount = note.items.filter(
-              (block) =>
-                block.kind !== 'text' &&
-                block.status !== 'done'
+            const actionableCount = (note.items || []).filter(
+              (block) => block.kind !== 'text' && block.status !== 'done'
             ).length
 
             return (
               <article
-                className="note-card"
+                className={`note-card compact-note-card${expanded ? ' is-expanded' : ''}`}
                 key={note.id}
               >
                 <div className="note-card-head">
-                  <div>
+                  <div className="note-card-title-copy">
                     <span className="note-universe">
                       <Icon size={12} />
                       {universe.label}
                     </span>
-
                     <h3>{note.title}</h3>
+
+                    {(received || senderCiriloId) && senderCiriloId && (
+                      <span className="note-from-line">
+                        {senderPhotoURL ? (
+                          <img
+                            className="note-from-avatar"
+                            src={senderPhotoURL}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <span className="note-from-avatar fallback">
+                            {senderCiriloId.replace('cirilo_', '').slice(0, 1).toUpperCase()}
+                          </span>
+                        )}
+                        <span className="note-from-copy">
+                          From {senderCiriloId}
+                          {note.forwardedByCiriloId
+                            ? ` · forwarded by ${note.forwardedByCiriloId}`
+                            : ''}
+                        </span>
+                      </span>
+                    )}
                   </div>
 
                   <button
                     className="icon-btn note-more"
                     onClick={() => openEdit(note)}
+                    title={editable ? 'Edit' : 'Open'}
                   >
-                    <MoreHorizontal size={16} />
+                    {received ? <Lock size={14} /> : <MoreHorizontal size={16} />}
                   </button>
                 </div>
 
-                <div className="note-card-items">
-                  {visibleBlocks
-                    .slice(0, 6)
-                    .map((block) => {
-                      if (block.kind === 'text') {
-                        return (
-                          <div
-                            key={block.id}
-                            style={{
-                              padding: '10px 0',
-                              borderBottom: '1px solid #f3f4f5',
-                              color: '#6f767d',
-                              fontSize: 11,
-                              lineHeight: 1.55,
-                              whiteSpace: 'pre-wrap',
-                            }}
-                          >
-                            {block.text}
-                          </div>
-                        )
-                      }
+                <div className="note-card-status-row">
+                  <span className={`note-policy-badge ${getSharePolicy(note)}`}>
+                    {getSharePolicy(note) === 'shareable' ? 'Shareable' : 'Private'}
+                  </span>
+                  {closed && <span className="note-closed-badge">Closed</span>}
+                </div>
 
+                <div className="note-card-items compact-body">
+                  {(expanded ? blocks : blocks.slice(0, 1)).map((block) => {
+                    if (block.kind === 'text') {
                       return (
-                        <div
-                          className="note-card-item"
-                          key={block.id}
+                        <div className="note-free-preview" key={block.id}>
+                          {block.text}
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div className="note-card-item" key={block.id}>
+                        <button
+                          className="note-item-check"
+                          title={editable ? 'Done' : 'Original item is locked'}
+                          disabled={!editable}
+                          onClick={() => handleDone(note, block)}
                         >
+                          ✓
+                        </button>
+
+                        <span className="note-item-copy">
+                          <span>{block.text}</span>
+                          {block.status === 'scheduled' ? (
+                            <small>Scheduled in your week</small>
+                          ) : block.reminderType === 'monthly' ? (
+                            <small>Monthly reminder</small>
+                          ) : null}
+                        </span>
+
+                        <div className="note-item-actions">
                           <button
-                            className="note-item-check"
-                            title="Done"
-                            onClick={() =>
-                              handleDone(note, block)
-                            }
+                            title="Add to week"
+                            onClick={() => handleAddToWeek(note, block)}
                           >
-                            <Check size={12} />
+                            <CalendarPlus size={13} />
                           </button>
 
-                          <span className="note-item-copy">
-                            <span>{block.text}</span>
-
-                            {block.status === 'scheduled' ? (
-                              <small>
-                                Scheduled in your week
-                              </small>
-                            ) : block.reminderType === 'monthly' ? (
-                              <small>
-                                Monthly reminder
-                              </small>
-                            ) : null}
-                          </span>
-
-                          <div className="note-item-actions">
+                          {(editable || forwardable) && (
                             <button
-                              title="Add to week"
-                              onClick={() =>
-                                handleAddToWeek(
-                                  note,
-                                  block
-                                )
-                              }
-                            >
-                              <CalendarPlus size={13} />
-                            </button>
-
-                            <button
-                              title="Share"
+                              title={forwardable && received ? 'Forward' : 'Share'}
                               onClick={() =>
                                 onShare({
                                   type: 'item',
                                   noteId: note.id,
                                   noteTitle: note.title,
                                   universe: note.universe,
+                                  visibility: note.visibility,
+                                  sharePolicy: getSharePolicy(note),
+                                  threadId: note.threadId || '',
+                                  originalSenderCiriloId:
+                                    note.originalSenderCiriloId || '',
                                   item: block,
                                 })
                               }
                             >
                               <Share2 size={13} />
                             </button>
-                          </div>
+                          )}
                         </div>
-                      )
-                    })}
+                      </div>
+                    )
+                  })}
+
+                  {!blocks.length && (
+                    <div className="note-free-preview">No active item.</div>
+                  )}
                 </div>
+
+                <button
+                  className="note-expand-button"
+                  onClick={() => toggleExpanded(note.id)}
+                >
+                  {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  {expanded ? 'Reduce' : 'Develop'}
+                </button>
 
                 <footer className="note-card-footer">
                   <span>
-                    {actionableCount}{' '}
-                    {actionableCount === 1
-                      ? 'item'
-                      : 'items'}
+                    {actionableCount} {actionableCount === 1 ? 'item' : 'items'}
                   </span>
 
                   <div className="note-card-footer-actions">
+                    <button
+                      onClick={() => handleSendToEvent(note)}
+                      title="Send this note to your calendar"
+                    >
+                      <CalendarPlus size={12} />
+                      Send to event
+                    </button>
+
                     <button onClick={() => handleExportPdf(note)} title="Export PDF">
                       <Download size={12} />
                       PDF
                     </button>
-                    <button
-                      onClick={() =>
-                        onShare({
-                          type: 'note',
-                          note,
-                        })
-                      }
-                    >
-                      <Share2 size={12} />
-                      Share list
-                    </button>
+
+                    {(editable || forwardable) && (
+                      <button
+                        onClick={() =>
+                          onShare({
+                            type: 'note',
+                            note: {
+                              ...note,
+                              sharePolicy: getSharePolicy(note),
+                            },
+                            threadId: note.threadId || '',
+                            sharePolicy: getSharePolicy(note),
+                            originalSenderCiriloId:
+                              note.originalSenderCiriloId || '',
+                          })
+                        }
+                      >
+                        <Share2 size={12} />
+                        {received ? 'Forward' : 'Share list'}
+                      </button>
+                    )}
                   </div>
                 </footer>
               </article>
@@ -408,30 +416,21 @@ export default function NotesView({
         onSave={async (note) => {
           try {
             setError('')
-            await saveNote(
-              firebaseUser.uid,
-              note
-            )
+            await saveNote(firebaseUser.uid, {
+              ...note,
+              ownerCiriloId:
+                note.ownerCiriloId || profile?.ciriloId || '',
+            })
             setModalOpen(false)
             setModalFocusItemId('')
           } catch (err) {
             console.error(err)
-            setError(
-              err?.message ||
-              'Could not save your list.'
-            )
+            setError(err?.message || 'Could not save your list.')
           }
         }}
         onDelete={async (noteId) => {
-          const { deleteNote } = await import(
-            '../services/notesService'
-          )
-
-          await deleteNote(
-            firebaseUser.uid,
-            noteId
-          )
-
+          const { deleteNote } = await import('../services/notesService')
+          await deleteNote(firebaseUser.uid, noteId)
           setModalOpen(false)
           setModalFocusItemId('')
         }}
