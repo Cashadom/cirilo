@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -9,6 +8,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 
@@ -20,9 +20,9 @@ export function subscribeInbox(uid, callback, onError) {
 
   return onSnapshot(
     inboxQuery,
-    (snapshot) => {
+    snapshot => {
       callback(
-        snapshot.docs.map((item) => ({
+        snapshot.docs.map(item => ({
           id: item.id,
           ...item.data(),
         }))
@@ -33,9 +33,12 @@ export function subscribeInbox(uid, callback, onError) {
 }
 
 export function markInboxItem(uid, id, status) {
-  return updateDoc(doc(db, 'users', uid, 'inbox', id), {
-    status,
-  })
+  return updateDoc(
+    doc(db, 'users', uid, 'inbox', id),
+    {
+      status,
+    }
+  )
 }
 
 export async function archiveInboxItem(
@@ -43,23 +46,29 @@ export async function archiveInboxItem(
   id,
   archiveType = 'inbox'
 ) {
-  return updateDoc(doc(db, 'users', uid, 'inbox', id), {
-    status: 'archived',
-    archived: true,
-    archiveType,
-    archivedAt: serverTimestamp(),
-  })
+  return updateDoc(
+    doc(db, 'users', uid, 'inbox', id),
+    {
+      status: 'archived',
+      archived: true,
+      archiveType,
+      archivedAt: serverTimestamp(),
+    }
+  )
 }
 
 export function deleteInboxItem(uid, id) {
-  // Local delete only. The sender's copy and every other recipient copy remain intact.
-  return deleteDoc(doc(db, 'users', uid, 'inbox', id))
+  return deleteDoc(
+    doc(db, 'users', uid, 'inbox', id)
+  )
 }
 
 export async function getInboxItem(uid, id) {
   if (!uid || !id) return null
 
-  const snapshot = await getDoc(doc(db, 'users', uid, 'inbox', id))
+  const snapshot = await getDoc(
+    doc(db, 'users', uid, 'inbox', id)
+  )
 
   if (!snapshot.exists()) return null
 
@@ -74,54 +83,139 @@ export async function sendInboxReply({
   inboxItem,
   text,
 }) {
-  const cleanText = (text || '').trim()
+  const cleanText = String(text || '').trim()
 
-  if (!sender?.uid || !cleanText || !inboxItem) {
-    throw new Error('Missing reply information.')
+  if (!sender?.uid) {
+    throw new Error('Sender is missing.')
   }
 
-  if (inboxItem.closed || inboxItem.status === 'closed') {
+  if (!inboxItem) {
+    throw new Error('Inbox item is missing.')
+  }
+
+  if (!cleanText) {
+    throw new Error('Reply cannot be empty.')
+  }
+
+  if (
+    inboxItem.closed === true ||
+    inboxItem.status === 'closed'
+  ) {
     throw new Error('This conversation is closed.')
   }
 
   const recipientUid =
-    inboxItem.senderUid || inboxItem.originalSenderUid || ''
+    inboxItem.senderUid ||
+    inboxItem.originalSenderUid ||
+    ''
 
   if (!recipientUid) {
-    throw new Error('The sender could not be resolved.')
+    console.error(
+      'Could not resolve reply recipient:',
+      inboxItem
+    )
+
+    throw new Error(
+      'The sender could not be resolved.'
+    )
   }
 
-  await addDoc(collection(db, 'users', recipientUid, 'inbox'), {
-    type: 'reply',
-    status: 'new',
+  if (recipientUid === sender.uid) {
+    throw new Error('The reply recipient could not be resolved.')
+  }
 
+  const originalSenderUid =
+    inboxItem.originalSenderUid ||
+    inboxItem.senderUid ||
+    ''
+
+  const originalSenderCiriloId =
+    inboxItem.originalSenderCiriloId ||
+    inboxItem.senderCiriloId ||
+    inboxItem.sharedByCiriloId ||
+    inboxItem.sharedBy ||
+    ''
+
+  const baseReplyData = {
     senderUid: sender.uid,
     senderCiriloId: sender.ciriloId || '',
     senderName: sender.displayName || 'Cirilo user',
     senderPhotoURL: sender.photoURL || '',
 
     recipientUid,
+
     relatedInboxItemId: inboxItem.id || '',
     relatedType: inboxItem.type || 'message',
+
     threadId: inboxItem.threadId || '',
 
-    originalSenderUid:
-      inboxItem.originalSenderUid || inboxItem.senderUid || '',
-    originalSenderCiriloId:
-      inboxItem.originalSenderCiriloId || inboxItem.senderCiriloId || '',
+    originalSenderUid,
+    originalSenderCiriloId,
 
     message: cleanText,
+
     sharePolicy: inboxItem.sharePolicy || 'private',
     closed: false,
+
     createdAt: serverTimestamp(),
+  }
+
+  /*
+   * IMPORTANT:
+   * The recipient copy and the sender's local history copy are
+   * written in one Firestore batch. Either both writes succeed,
+   * or neither is committed.
+   */
+  const recipientReplyRef = doc(
+    collection(db, 'users', recipientUid, 'inbox')
+  )
+
+  const localReplyRef = doc(
+    collection(db, 'users', sender.uid, 'inbox')
+  )
+
+  const originalInboxRef = doc(
+    db,
+    'users',
+    sender.uid,
+    'inbox',
+    inboxItem.id
+  )
+
+  const batch = writeBatch(db)
+
+  batch.set(recipientReplyRef, {
+    ...baseReplyData,
+    type: 'reply',
+    status: 'new',
+    localCopy: false,
   })
 
-  await updateDoc(doc(db, 'users', sender.uid, 'inbox', inboxItem.id), {
+  batch.set(localReplyRef, {
+    ...baseReplyData,
+    type: 'reply_sent',
+    status: 'sent',
+    localCopy: true,
+  })
+
+  batch.update(originalInboxRef, {
     lastReplyAt: serverTimestamp(),
   })
+
+  await batch.commit()
+
+  return {
+    id: recipientReplyRef.id,
+    localId: localReplyRef.id,
+    ...baseReplyData,
+    type: 'reply',
+    status: 'new',
+  }
 }
 
-export function inferInboxArchiveType(item = {}) {
+export function inferInboxArchiveType(
+  item = {}
+) {
   if (
     item.type === 'event_share' ||
     item.event ||

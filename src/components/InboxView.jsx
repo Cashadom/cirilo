@@ -10,7 +10,6 @@ import {
   MessageCircle,
   RotateCcw,
   Send,
-  Share2,
   Trash2,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -64,12 +63,42 @@ export default function InboxView({
     () =>
       items.filter(
         (item) =>
+          item.type !== 'reply_sent' &&
           item.status !== 'dismissed' &&
           item.status !== 'archived' &&
           !item.archived
       ),
     [items]
   )
+
+  const sentRepliesByParent = useMemo(() => {
+    const grouped = new Map()
+
+    items
+      .filter(
+        (item) =>
+          item.type === 'reply_sent' &&
+          item.relatedInboxItemId &&
+          item.status !== 'archived' &&
+          !item.archived
+      )
+      .forEach((item) => {
+        const key = item.relatedInboxItemId
+        const current = grouped.get(key) || []
+        current.push(item)
+        grouped.set(key, current)
+      })
+
+    grouped.forEach((replies) => {
+      replies.sort((a, b) => {
+        const aDate = a.createdAt?.toMillis?.() || 0
+        const bDate = b.createdAt?.toMillis?.() || 0
+        return aDate - bDate
+      })
+    })
+
+    return grouped
+  }, [items])
 
   const toggleExpanded = (id) => {
     setExpandedIds((current) => {
@@ -205,6 +234,8 @@ export default function InboxView({
     if (!text) return
 
     try {
+      setError('')
+
       await sendInboxReply({
         sender: {
           uid: firebaseUser.uid,
@@ -216,9 +247,16 @@ export default function InboxView({
         inboxItem: item,
         text,
       })
+
       setReplyText('')
       setReplyingId('')
+      setExpandedIds((current) => {
+        const next = new Set(current)
+        next.add(item.id)
+        return next
+      })
     } catch (err) {
+      console.error(err)
       setError(err?.message || 'Could not send your reply.')
     }
   }
@@ -262,6 +300,16 @@ export default function InboxView({
     return item.event?.notes || item.message || item.text || ''
   }
 
+  function formatReplyDate(value) {
+    const date = value?.toDate?.()
+    if (!date) return ''
+
+    return date.toLocaleString([], {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    })
+  }
+
   return (
     <section className="inbox-view">
       <div className="tasks-intro">
@@ -293,6 +341,7 @@ export default function InboxView({
             const replyAllowed = canReply(item, firebaseUser.uid)
             const forwardAllowed =
               item.type === 'note_share' && canForward(item, firebaseUser.uid)
+            const sentReplies = sentRepliesByParent.get(item.id) || []
 
             if (item.type === 'note_reminder') {
               return (
@@ -352,6 +401,25 @@ export default function InboxView({
                     <small>
                       {item.event.date} · {item.event.startTime} — {item.event.endTime}
                     </small>
+                  )}
+
+                  {expanded && sentReplies.length > 0 && (
+                    <div className="inbox-reply-history">
+                      {sentReplies.map((reply) => (
+                        <div className="inbox-reply-history-item" key={reply.id}>
+                          <div className="inbox-reply-history-meta">
+                            <strong>You</strong>
+                            {profile?.ciriloId ? (
+                              <span> · {profile.ciriloId}</span>
+                            ) : null}
+                            {reply.createdAt ? (
+                              <span> · {formatReplyDate(reply.createdAt)}</span>
+                            ) : null}
+                          </div>
+                          <p>{reply.message}</p>
+                        </div>
+                      ))}
+                    </div>
                   )}
 
                   {replyingId === item.id && !closed && (
