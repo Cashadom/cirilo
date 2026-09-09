@@ -2373,3 +2373,698 @@ main{padding:18px 24px 36px}
     padding:6px 9px;
   }
 }
+
+
+/* =========================
+   CIRILO — Tasks & Tamba Field Work
+   ========================= */
+
+.tasks-tamba-view{
+  max-width:1120px;
+  margin:0 auto;
+  padding:18px 0 44px;
+}
+
+.tasks-tamba-intro{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:24px;
+  margin-bottom:18px;
+}
+
+.tasks-tamba-intro h2{
+  margin:5px 0 7px;
+  font-size:30px;
+  line-height:1.08;
+  letter-spacing:-.03em;
+  font-weight:400;
+}
+
+.tasks-tamba-intro p{
+  max-width:720px;
+  margin:0;
+  color:#8d939a;
+  font-size:13px;
+  line-height:1.5;
+}
+
+.tasks-tamba-top-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:none;
+}
+
+.tasks-tamba-tabs{
+  display:flex;
+  gap:5px;
+  padding-bottom:14px;
+  border-bottom:1px solid #ebedef;
+  margin-bottom:15px;
+}
+
+.tasks-tamba-tabs button{
+  border:1px solid transparent;
+  background:transparent;
+  color:#90979e;
+  border-radius:10px;
+  padding:8px 10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+}
+
+.tasks-tamba-tabs button.active{
+  color:#1f2428;
+  background:#f7f8f8;
+  border-color:#e5e7ea;
+}
+
+.tasks-tamba-panel{
+  border:1px solid #e6e8eb;
+  border-radius:16px;
+  background:#fff;
+  overflow:hidden;
+}
+
+.tasks-tamba-panel-head{
+  padding:14px 16px;
+  border-bottom:1px solid #eff0f1;
+}
+
+.tasks-tamba-panel-head>div{
+  display:grid;
+  gap:3px;
+}
+
+.tasks-tamba-panel-head strong{
+  font-size:12px;
+  font-weight:400;
+}
+
+.tasks-tamba-panel-head small{
+  font-size:9px;
+  color:#9aa1a8;
+}
+
+.tasks-tamba-panel .task-list{
+  border-top:0;
+  padding:0 14px;
+}
+
+.tasks-tamba-empty{
+  min-height:190px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:9px;
+  color:#a0a6ac;
+  text-align:center;
+}
+
+.tasks-tamba-empty p{
+  margin:0;
+  font-size:11px;
+}
+
+.tamba-status-filters{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+
+.tamba-status-filters button{
+  border:1px solid #e5e7ea;
+  background:#fff;
+  color:#858c93;
+  border-radius:999px;
+  padding:7px 9px;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  font-size:10px;
+}
+
+.tamba-status-filters button span{
+  min-width:18px;
+  height:18px;
+  padding:0 5px;
+  border-radius:999px;
+  background:#f4f5f6;
+  display:grid;
+  place-items:center;
+  font-size:8px;
+}
+
+.tamba-status-filters button.active{
+  color:#1f2428;
+  border-color:#cfd4d9;
+  background:#fafafa;
+}
+
+.tamba-template-strip{
+  border:1px solid #e6e8eb;
+  border-radius:14px;
+  padding:12px;
+  margin-bottom:12px;
+  background:#fff;
+}
+
+.tamba-template-strip-head{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  margin-bottom:9px;
+}
+
+.tamba-template-strip-head>span{
+  font-size:10px;
+  color:#7d848b;
+}
+
+.tamba-template-strip-head button{
+  border:0;
+  background:transparent;
+  color:#9aa1a8;
+  font-size:9px;
+  display:flex;
+  align-items:center;
+  gap:3px;
+}
+
+.tamba-template-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+
+.tamba-template-chips button{
+  border:1px solid #e7e9eb;
+  background:#fafafa;
+  color:#545b62;
+  border-radius:9px;
+  padding:7px 8px;
+  font-size:9px;
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
+
+.tamba-job-list{
+  display:grid;
+  gap:8px;
+}
+
+.tamba-job-row{
+  width:100%;
+  min-height:86px;
+  border:1px solid #e5e7ea;
+  border-radius:14px;
+  background:#fff;
+  display:grid;
+  grid-template-columns:34px minmax(0,1.5fr) minmax(150px,.8fr) 90px 102px;
+  gap:12px;
+  align-items:center;
+  padding:12px 13px;
+  text-align:left;
+  color:#252a2f;
+}
+
+.tamba-job-row:hover{
+  border-color:#d7dbe0;
+  box-shadow:0 7px 22px rgba(17,19,23,.04);
+}
+
+.tamba-status-mark{
+  width:32px;
+  height:32px;
+  border-radius:10px;
+  border:1px solid #e4e7ea;
+  background:#fafafa;
+  display:grid;
+  place-items:center;
+  color:#7e8793;
+}
+
+.tamba-job-row.status-in_progress .tamba-status-mark{
+  color:#2F80ED;
+  border-color:#d9e8fb;
+  background:#f8fbff;
+}
+
+.tamba-job-row.status-completed .tamba-status-mark{
+  color:#4EBA86;
+  border-color:#dbece4;
+  background:#f8fcfa;
+}
+
+.tamba-job-main{
+  min-width:0;
+  display:grid;
+  gap:5px;
+}
+
+.tamba-job-main>strong{
+  font-size:13px;
+  font-weight:400;
+  color:#24292e;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.tamba-job-main>small{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 12px;
+  color:#959ca3;
+  font-size:9px;
+}
+
+.tamba-job-main>small span{
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+
+.tamba-job-assignee{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-width:0;
+  color:#7e8793;
+}
+
+.tamba-job-assignee>span,
+.tamba-job-progress{
+  display:grid;
+  gap:2px;
+}
+
+.tamba-job-assignee small,
+.tamba-job-progress small{
+  font-size:8px;
+  color:#a0a6ac;
+}
+
+.tamba-job-assignee strong,
+.tamba-job-progress strong{
+  font-size:10px;
+  font-weight:400;
+  color:#555d64;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.tamba-status-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:max-content;
+  border-radius:999px;
+  padding:5px 8px;
+  border:1px solid #e3e6e9;
+  background:#fafafa;
+  color:#6f767d;
+  font-size:8px;
+  white-space:nowrap;
+}
+
+.tamba-status-pill.in_progress{
+  color:#2F80ED;
+  border-color:#d6e6fb;
+  background:#f7fbff;
+}
+
+.tamba-status-pill.completed{
+  color:#4E8D69;
+  border-color:#d9e9e0;
+  background:#f7fbf9;
+}
+
+.tamba-job-modal,
+.tamba-template-modal{
+  width:min(820px,100%);
+  max-height:92vh;
+  overflow:auto;
+  background:#fff;
+  border:1px solid #e2e4e7;
+  border-radius:18px;
+  box-shadow:0 24px 70px rgba(17,19,23,.14);
+  padding:20px;
+}
+
+.tamba-template-modal{
+  width:min(980px,100%);
+}
+
+.tamba-modal-head{
+  display:flex;
+  justify-content:space-between;
+  gap:14px;
+  align-items:flex-start;
+  margin-bottom:14px;
+}
+
+.tamba-modal-head h2{
+  font-size:23px;
+  font-weight:400;
+  letter-spacing:-.025em;
+  margin:5px 0 3px;
+}
+
+.tamba-modal-head small{
+  color:#9aa1a8;
+  font-size:9px;
+}
+
+.tamba-status-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:10px 0 14px;
+  border-bottom:1px solid #eff0f1;
+  margin-bottom:14px;
+  color:#969da4;
+  font-size:9px;
+}
+
+.tamba-input-icon{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid #e0e3e6;
+  border-radius:9px;
+  padding-left:9px;
+  color:#9aa1a8;
+}
+
+.tamba-input-icon input{
+  border:0!important;
+  box-shadow:none!important;
+  padding-left:0!important;
+}
+
+.tamba-checklist-editor,
+.tamba-proof{
+  margin-top:16px;
+  padding-top:14px;
+  border-top:1px solid #eceef0;
+}
+
+.tamba-section-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:10px;
+}
+
+.tamba-section-head>div{
+  display:grid;
+  gap:3px;
+}
+
+.tamba-section-head strong{
+  font-size:11px;
+  font-weight:400;
+  color:#353a3f;
+}
+
+.tamba-section-head small{
+  font-size:9px;
+  color:#9aa1a8;
+}
+
+.tamba-checklist-list{
+  display:grid;
+  gap:7px;
+}
+
+.tamba-checklist-item{
+  display:grid;
+  grid-template-columns:28px minmax(0,1fr) 36px;
+  gap:8px;
+  align-items:center;
+}
+
+.tamba-checklist-item>input,
+.tamba-template-checklist-row>input{
+  width:100%;
+  border:1px solid #e0e3e6;
+  border-radius:9px;
+  padding:9px 10px;
+  outline:none;
+}
+
+.tamba-check{
+  width:26px;
+  height:26px;
+  border-radius:8px;
+  border:1px solid #dfe3e6;
+  background:#fff;
+  display:grid;
+  place-items:center;
+  color:#fff;
+}
+
+.tamba-check.done{
+  background:#4EBA86;
+  border-color:#4EBA86;
+}
+
+.tamba-notes-field{
+  margin-top:16px;
+}
+
+.tamba-upload-button{
+  position:relative;
+}
+
+.tamba-proof-preview{
+  max-width:320px;
+  border:1px solid #e4e7ea;
+  border-radius:12px;
+  overflow:hidden;
+}
+
+.tamba-proof-preview img{
+  width:100%;
+  display:block;
+}
+
+.tamba-proof-empty{
+  border:1px dashed #dfe3e6;
+  border-radius:11px;
+  padding:18px;
+  color:#a0a6ac;
+  font-size:9px;
+}
+
+.tamba-modal-footer,
+.tamba-template-footer{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:center;
+  margin-top:18px;
+  padding-top:14px;
+  border-top:1px solid #eceef0;
+}
+
+.tamba-modal-actions,
+.tamba-template-footer>div{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.tamba-template-layout{
+  display:grid;
+  grid-template-columns:250px minmax(0,1fr);
+  gap:16px;
+}
+
+.tamba-template-library{
+  border-right:1px solid #eceef0;
+  padding-right:16px;
+}
+
+.tamba-template-library-list{
+  display:grid;
+  gap:6px;
+}
+
+.tamba-template-library-row{
+  width:100%;
+  border:1px solid #e7e9eb;
+  border-radius:10px;
+  background:#fff;
+  padding:9px 10px;
+  text-align:left;
+  display:grid;
+  gap:3px;
+}
+
+.tamba-template-library-row.active{
+  border-color:#cfd4d9;
+  background:#fafafa;
+}
+
+.tamba-template-library-row strong{
+  font-size:10px;
+  font-weight:400;
+}
+
+.tamba-template-library-row small{
+  color:#9aa1a8;
+  font-size:8px;
+}
+
+.tamba-template-empty{
+  min-height:120px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:6px;
+  color:#a0a6ac;
+  font-size:9px;
+}
+
+.tamba-template-editor{
+  display:grid;
+  gap:12px;
+}
+
+.tamba-template-checklist{
+  display:grid;
+  gap:7px;
+}
+
+.tamba-template-checklist-row{
+  display:grid;
+  grid-template-columns:24px minmax(0,1fr) 36px;
+  gap:8px;
+  align-items:center;
+}
+
+.tamba-template-checklist-row>span{
+  width:22px;
+  height:22px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  background:#f5f6f7;
+  color:#9aa1a8;
+  font-size:8px;
+}
+
+.event-card.is-task .event-title::before{
+  content:"";
+}
+
+@media(max-width:900px){
+  .tamba-job-row{
+    grid-template-columns:34px minmax(0,1fr) 90px;
+  }
+
+  .tamba-job-assignee{
+    grid-column:2;
+  }
+
+  .tamba-status-pill{
+    grid-column:3;
+    grid-row:1/3;
+  }
+
+  .tamba-template-layout{
+    grid-template-columns:1fr;
+  }
+
+  .tamba-template-library{
+    border-right:0;
+    border-bottom:1px solid #eceef0;
+    padding-right:0;
+    padding-bottom:14px;
+  }
+}
+
+@media(max-width:680px){
+  .tasks-tamba-intro{
+    align-items:flex-start;
+    flex-direction:column;
+  }
+
+  .tasks-tamba-intro h2{
+    font-size:25px;
+  }
+
+  .tasks-tamba-top-actions{
+    width:100%;
+  }
+
+  .tasks-tamba-top-actions .primary-btn,
+  .tasks-tamba-top-actions .secondary-btn{
+    flex:1;
+  }
+
+  .tasks-tamba-tabs,
+  .tamba-status-filters{
+    overflow:auto;
+    flex-wrap:nowrap;
+    padding-bottom:6px;
+  }
+
+  .tasks-tamba-tabs button,
+  .tamba-status-filters button{
+    white-space:nowrap;
+  }
+
+  .tamba-job-row{
+    grid-template-columns:32px minmax(0,1fr);
+    align-items:start;
+  }
+
+  .tamba-job-assignee,
+  .tamba-job-progress,
+  .tamba-status-pill{
+    grid-column:2;
+    grid-row:auto;
+  }
+
+  .tamba-status-pill{
+    justify-self:start;
+  }
+
+  .tamba-job-modal,
+  .tamba-template-modal{
+    border-radius:14px;
+    padding:16px;
+  }
+
+  .tamba-modal-footer,
+  .tamba-template-footer{
+    align-items:stretch;
+    flex-direction:column;
+  }
+
+  .tamba-modal-actions,
+  .tamba-template-footer>div{
+    width:100%;
+  }
+
+  .tamba-modal-actions .primary-btn,
+  .tamba-modal-actions .secondary-btn,
+  .tamba-template-footer .primary-btn,
+  .tamba-template-footer .secondary-btn,
+  .tamba-template-footer .danger-btn{
+    flex:1;
+  }
+}

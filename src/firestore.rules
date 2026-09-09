@@ -14,11 +14,15 @@ service cloud.firestore {
     function threadExists(threadId) {
       return threadId is string
         && threadId.size() > 0
-        && exists(/databases/$(database)/documents/sharedThreads/$(threadId));
+        && exists(
+          /databases/$(database)/documents/sharedThreads/$(threadId)
+        );
     }
 
     function threadData(threadId) {
-      return get(/databases/$(database)/documents/sharedThreads/$(threadId)).data;
+      return get(
+        /databases/$(database)/documents/sharedThreads/$(threadId)
+      ).data;
     }
 
     function receivedNote(data) {
@@ -28,24 +32,30 @@ service cloud.firestore {
     }
 
     function validInboxLocalUpdate() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'status',
-        'archived',
-        'archivedAt',
-        'archiveType',
-        'read',
-        'readAt',
-        'lastReplyAt',
-        'updatedAt'
-      ]);
+      return request.resource.data
+        .diff(resource.data)
+        .affectedKeys()
+        .hasOnly([
+          'status',
+          'archived',
+          'archivedAt',
+          'archiveType',
+          'read',
+          'readAt',
+          'lastReplyAt',
+          'updatedAt'
+        ]);
     }
 
     function validReceivedNoteLocalUpdate() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'archived',
-        'archivedAt',
-        'updatedAt'
-      ]);
+      return request.resource.data
+        .diff(resource.data)
+        .affectedKeys()
+        .hasOnly([
+          'archived',
+          'archivedAt',
+          'updatedAt'
+        ]);
     }
 
     function validNoteShareCreate(uid) {
@@ -66,9 +76,11 @@ service cloud.firestore {
         && request.resource.data.organizerCiriloId
           == threadData(request.resource.data.threadId).organizerCiriloId
         && (
-          request.auth.uid == threadData(request.resource.data.threadId).organizerUid
+          request.auth.uid
+            == threadData(request.resource.data.threadId).organizerUid
           ||
-          threadData(request.resource.data.threadId).sharePolicy == 'shareable'
+          threadData(request.resource.data.threadId).sharePolicy
+            == 'shareable'
         );
     }
 
@@ -104,6 +116,14 @@ service cloud.firestore {
         && request.resource.data.message is string
         && request.resource.data.message.size() > 0
         && request.resource.data.message.size() <= 5000;
+    }
+
+    function validTambaShareCreate(uid) {
+      return signedIn()
+        && request.resource.data.type == 'tamba_share'
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.recipientUid == uid
+        && request.resource.data.tambaJob is map;
     }
 
     match /users/{uid} {
@@ -152,11 +172,35 @@ service cloud.firestore {
             ||
             validLocalReplyCopyCreate(uid)
             ||
+            validTambaShareCreate(uid)
+            ||
             (
               request.resource.data.type == 'note_reminder'
               && request.auth.uid == uid
             )
           );
+      }
+
+      match /tambaJobs/{jobId} {
+
+        allow read: if owner(uid);
+
+        allow create: if owner(uid);
+
+        allow update: if owner(uid);
+
+        allow delete: if owner(uid);
+      }
+
+      match /tambaTemplates/{templateId} {
+
+        allow read: if owner(uid);
+
+        allow create: if owner(uid);
+
+        allow update: if owner(uid);
+
+        allow delete: if owner(uid);
       }
     }
 
@@ -207,9 +251,11 @@ service cloud.firestore {
         && request.resource.data.sharePolicy
           == threadData(request.resource.data.threadId).sharePolicy
         && (
-          request.auth.uid == threadData(request.resource.data.threadId).organizerUid
+          request.auth.uid
+            == threadData(request.resource.data.threadId).organizerUid
           ||
-          threadData(request.resource.data.threadId).sharePolicy == 'shareable'
+          threadData(request.resource.data.threadId).sharePolicy
+            == 'shareable'
         );
 
       allow update, delete: if false;
@@ -218,6 +264,7 @@ service cloud.firestore {
     match /sharedThreads/{threadId} {
 
       allow get: if signedIn();
+
       allow list: if false;
 
       allow create: if signedIn()
@@ -234,9 +281,12 @@ service cloud.firestore {
         && (
           (
             resource.data.closed == false
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'updatedAt'
-            ])
+            && request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'updatedAt'
+              ])
           )
           ||
           (
@@ -244,13 +294,16 @@ service cloud.firestore {
             && resource.data.closed == false
             && request.resource.data.closed == true
             && request.resource.data.closedByUid == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'closed',
-              'closedByUid',
-              'closedByCiriloId',
-              'closedAt',
-              'updatedAt'
-            ])
+            && request.resource.data
+              .diff(resource.data)
+              .affectedKeys()
+              .hasOnly([
+                'closed',
+                'closedByUid',
+                'closedByCiriloId',
+                'closedAt',
+                'updatedAt'
+              ])
           )
         );
 
@@ -262,8 +315,12 @@ service cloud.firestore {
 
         allow create: if signedIn()
           && request.resource.data.senderUid == request.auth.uid
-          && exists(/databases/$(database)/documents/sharedThreads/$(threadId))
-          && get(/databases/$(database)/documents/sharedThreads/$(threadId)).data.closed == false;
+          && exists(
+            /databases/$(database)/documents/sharedThreads/$(threadId)
+          )
+          && get(
+            /databases/$(database)/documents/sharedThreads/$(threadId)
+          ).data.closed == false;
 
         allow update, delete: if false;
       }

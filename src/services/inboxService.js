@@ -225,6 +225,14 @@ export function inferInboxArchiveType(
   }
 
   if (
+    item.type === 'tamba_share' ||
+    item.tambaJob ||
+    item.archiveType === 'tamba'
+  ) {
+    return 'tamba'
+  }
+
+  if (
     item.type === 'note_share' ||
     item.type === 'note_reminder' ||
     item.notePayload ||

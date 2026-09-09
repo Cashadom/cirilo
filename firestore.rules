@@ -8,22 +8,17 @@ service cloud.firestore {
     }
 
     function owner(uid) {
-      return signedIn()
-        && request.auth.uid == uid;
+      return signedIn() && request.auth.uid == uid;
     }
 
     function threadExists(threadId) {
       return threadId is string
         && threadId.size() > 0
-        && exists(
-          /databases/$(database)/documents/sharedThreads/$(threadId)
-        );
+        && exists(/databases/$(database)/documents/sharedThreads/$(threadId));
     }
 
     function threadData(threadId) {
-      return get(
-        /databases/$(database)/documents/sharedThreads/$(threadId)
-      ).data;
+      return get(/databases/$(database)/documents/sharedThreads/$(threadId)).data;
     }
 
     function receivedNote(data) {
@@ -33,587 +28,327 @@ service cloud.firestore {
     }
 
     function validInboxLocalUpdate() {
-      return request.resource.data
-        .diff(resource.data)
-        .affectedKeys()
-        .hasOnly([
-          'status',
-          'archived',
-          'archivedAt',
-          'archiveType',
-          'read',
-          'readAt',
-          'lastReplyAt',
-          'updatedAt'
-        ]);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status',
+        'archived',
+        'archivedAt',
+        'archiveType',
+        'read',
+        'readAt',
+        'lastReplyAt',
+        'updatedAt'
+      ]);
     }
 
     function validReceivedNoteLocalUpdate() {
-      return request.resource.data
-        .diff(resource.data)
-        .affectedKeys()
-        .hasOnly([
-          'archived',
-          'archivedAt',
-          'updatedAt'
-        ]);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'archived',
+        'archivedAt',
+        'updatedAt'
+      ]);
     }
 
     function validNoteShareCreate(uid) {
       return signedIn()
         && request.resource.data.type == 'note_share'
         && request.resource.data.senderUid == request.auth.uid
-
         && request.resource.data.threadId is string
-        && threadExists(
-          request.resource.data.threadId
-        )
-
-        && threadData(
-          request.resource.data.threadId
-        ).closed == false
-
+        && threadExists(request.resource.data.threadId)
+        && threadData(request.resource.data.threadId).closed == false
         && request.resource.data.sharePolicy
-          == threadData(
-            request.resource.data.threadId
-          ).sharePolicy
-
+          == threadData(request.resource.data.threadId).sharePolicy
         && request.resource.data.originalSenderUid
-          == threadData(
-            request.resource.data.threadId
-          ).originalSenderUid
-
+          == threadData(request.resource.data.threadId).originalSenderUid
         && request.resource.data.originalSenderCiriloId
-          == threadData(
-            request.resource.data.threadId
-          ).originalSenderCiriloId
-
+          == threadData(request.resource.data.threadId).originalSenderCiriloId
         && request.resource.data.organizerUid
-          == threadData(
-            request.resource.data.threadId
-          ).organizerUid
-
+          == threadData(request.resource.data.threadId).organizerUid
         && request.resource.data.organizerCiriloId
-          == threadData(
-            request.resource.data.threadId
-          ).organizerCiriloId
-
+          == threadData(request.resource.data.threadId).organizerCiriloId
         && (
-          request.auth.uid
-            == threadData(
-              request.resource.data.threadId
-            ).organizerUid
-
+          request.auth.uid == threadData(request.resource.data.threadId).organizerUid
           ||
-
-          threadData(
-            request.resource.data.threadId
-          ).sharePolicy == 'shareable'
+          threadData(request.resource.data.threadId).sharePolicy == 'shareable'
         );
     }
 
-    /*
-     * REPLY
-     *
-     * Deux générations sont acceptées :
-     *
-     * 1. Nouveau système :
-     *    threadId existe et le thread est ouvert.
-     *
-     * 2. Ancien système :
-     *    pas de threadId obligatoire.
-     *
-     * Dans les deux cas :
-     * - senderUid doit être l'utilisateur connecté
-     * - recipientUid doit être le propriétaire
-     *   de l'Inbox dans laquelle on écrit
-     * - le message doit être du texte non vide
-     */
     function validReplyInboxCreate(uid) {
       return signedIn()
-
         && request.resource.data.type == 'reply'
-
-        && request.resource.data.senderUid
-          == request.auth.uid
-
-        && request.resource.data.recipientUid
-          == uid
-
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.recipientUid == uid
         && request.resource.data.message is string
-
         && request.resource.data.message.size() > 0
-
         && request.resource.data.message.size() <= 5000
-
         && (
-          /*
-           * Legacy Inbox :
-           * aucun thread requis.
-           */
           !(
             request.resource.data.threadId is string
             && request.resource.data.threadId.size() > 0
           )
-
           ||
-
-          /*
-           * Nouveau système :
-           * si un threadId existe,
-           * il doit exister et être ouvert.
-           */
           (
             request.resource.data.threadId is string
-
             && request.resource.data.threadId.size() > 0
-
-            && threadExists(
-              request.resource.data.threadId
-            )
-
-            && threadData(
-              request.resource.data.threadId
-            ).closed == false
+            && threadExists(request.resource.data.threadId)
+            && threadData(request.resource.data.threadId).closed == false
           )
         );
     }
 
+    function validLocalReplyCopyCreate(uid) {
+      return signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.type == 'reply_sent'
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.localCopy == true
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 5000;
+    }
 
-    // ============================================================
-    // USERS
-    // ============================================================
+
+    function validTambaShareWrite(uid) {
+      return signedIn()
+        && request.resource.data.type == 'tamba_share'
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.recipientUid == uid
+        && request.resource.data.tambaJob is map;
+    }
+
+    function validTambaAssignedEventWrite(uid) {
+      return signedIn()
+        && request.resource.data.tambaAutoAssigned == true
+        && request.resource.data.assignedToUid == uid
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.sourceTambaJobId is string;
+    }
 
     match /users/{uid} {
 
-      allow create, read, update, delete:
-        if owner(uid);
-
-
-      // ----------------------------------------------------------
-      // EVENTS
-      // ----------------------------------------------------------
+      allow create, read, update, delete: if owner(uid);
 
       match /events/{eventId} {
+        allow read: if owner(uid);
 
-        allow read, write:
-          if owner(uid);
+        allow create: if owner(uid)
+          || validTambaAssignedEventWrite(uid);
+
+        allow update: if owner(uid)
+          || (
+            signedIn()
+            && resource.data.tambaAutoAssigned == true
+            && resource.data.createdByUid == request.auth.uid
+            && request.resource.data.createdByUid == request.auth.uid
+            && request.resource.data.assignedToUid == uid
+          );
+
+        allow delete: if owner(uid)
+          || (
+            signedIn()
+            && resource.data.tambaAutoAssigned == true
+            && resource.data.createdByUid == request.auth.uid
+          );
       }
-
-
-      // ----------------------------------------------------------
-      // NOTES
-      // ----------------------------------------------------------
 
       match /notes/{noteId} {
 
-        allow read:
-          if owner(uid);
+        allow read: if owner(uid);
 
-        /*
-         * Création locale.
-         * Une copie reçue peut aussi être enregistrée
-         * dans la collection Notes du destinataire.
-         */
-        allow create:
-          if owner(uid);
+        allow create: if owner(uid);
 
-        /*
-         * Une Note personnelle reste modifiable.
-         *
-         * Une Note reçue est verrouillée :
-         * seul son archivage local peut évoluer.
-         */
-        allow update:
-          if owner(uid)
+        allow update: if owner(uid)
           && (
             !receivedNote(resource.data)
-
             ||
-
             validReceivedNoteLocalUpdate()
           );
 
-        /*
-         * Supprimer une Note supprime uniquement
-         * la copie appartenant à cet utilisateur.
-         */
-        allow delete:
-          if owner(uid);
+        allow delete: if owner(uid);
       }
-
-
-      // ----------------------------------------------------------
-      // INBOX
-      // ----------------------------------------------------------
 
       match /inbox/{itemId} {
 
-        allow read:
-          if owner(uid);
+        allow read: if owner(uid);
 
-        /*
-         * Le destinataire peut uniquement modifier
-         * les métadonnées locales :
-         *
-         * status
-         * archived
-         * read
-         * lastReplyAt
-         *
-         * Il ne peut jamais réécrire :
-         *
-         * sender
-         * texte
-         * auteur
-         * privacy
-         * provenance
-         */
-        allow update:
-          if owner(uid)
-          && validInboxLocalUpdate();
+        allow update: if
+          (
+            owner(uid)
+            && validInboxLocalUpdate()
+          )
+          ||
+          (
+            resource.data.type == 'tamba_share'
+            && validTambaShareWrite(uid)
+            && resource.data.senderUid == request.auth.uid
+          );
 
-        /*
-         * Suppression locale uniquement.
-         */
-        allow delete:
-          if owner(uid);
+        allow delete: if owner(uid)
+          || (
+            signedIn()
+            && resource.data.type == 'tamba_share'
+            && resource.data.senderUid == request.auth.uid
+          );
 
-        /*
-         * Création d'éléments reçus.
-         */
-        allow create:
-          if signedIn()
+        allow create: if signedIn()
           && (
-
-            // Event reçu
             (
-              request.resource.data.type
-                == 'event_share'
-
-              && request.resource.data.senderUid
-                == request.auth.uid
+              request.resource.data.type == 'event_share'
+              && request.resource.data.senderUid == request.auth.uid
             )
-
             ||
-
-            // Note reçue
             validNoteShareCreate(uid)
-
             ||
-
-            // Reply ancien ou nouveau
             validReplyInboxCreate(uid)
-
             ||
-
-            // Reminder créé dans sa propre Inbox
+            validLocalReplyCopyCreate(uid)
+            ||
+            validTambaShareWrite(uid)
+            ||
             (
-              request.resource.data.type
-                == 'note_reminder'
-
+              request.resource.data.type == 'note_reminder'
               && request.auth.uid == uid
             )
           );
       }
-    }
 
+      match /tambaJobs/{jobId} {
+        allow read, create, update, delete: if owner(uid);
+      }
 
-    // ============================================================
-    // PUBLIC USERS
-    // ============================================================
-
-    match /publicUsers/{ciriloId} {
-
-      allow read:
-        if signedIn();
-
-      allow create, update:
-        if signedIn()
-        && request.resource.data.uid
-          == request.auth.uid;
-
-      allow delete:
-        if signedIn()
-        && resource.data.uid
-          == request.auth.uid;
-    }
-
-
-    // ============================================================
-    // CIRILO IDS
-    // ============================================================
-
-    match /ciriloIds/{ciriloId} {
-
-      allow get:
-        if signedIn();
-
-      allow list:
-        if false;
-
-      allow create:
-        if signedIn()
-        && request.resource.data.uid
-          == request.auth.uid;
-
-      allow update, delete:
-        if false;
-    }
-
-
-    // ============================================================
-    // SHARED EVENT CARDS
-    // ============================================================
-
-    match /sharedCards/{token} {
-
-      allow read:
-        if resource.data.visibility == 'shared'
-        && resource.data.revoked == false;
-
-      allow create:
-        if signedIn()
-        && request.resource.data.senderUid
-          == request.auth.uid;
-
-      allow update, delete:
-        if signedIn()
-        && resource.data.senderUid
-          == request.auth.uid;
-    }
-
-
-    // ============================================================
-    // SHARED NOTES
-    // ============================================================
-
-    match /sharedNotes/{token} {
-
-      allow read:
-        if resource.data.revoked == false;
-
-      allow create:
-        if signedIn()
-
-        && request.resource.data.senderUid
-          == request.auth.uid
-
-        && request.resource.data.threadId
-          is string
-
-        && threadExists(
-          request.resource.data.threadId
-        )
-
-        && threadData(
-          request.resource.data.threadId
-        ).closed == false
-
-        && request.resource.data.sharePolicy
-          == threadData(
-            request.resource.data.threadId
-          ).sharePolicy
-
-        && (
-          request.auth.uid
-            == threadData(
-              request.resource.data.threadId
-            ).organizerUid
-
-          ||
-
-          threadData(
-            request.resource.data.threadId
-          ).sharePolicy == 'shareable'
-        );
-
-      /*
-       * Une fois envoyé :
-       * pas de réécriture rétroactive.
-       */
-      allow update, delete:
-        if false;
-    }
-
-
-    // ============================================================
-    // SHARED THREADS
-    // ============================================================
-
-    match /sharedThreads/{threadId} {
-
-      allow get:
-        if signedIn();
-
-      allow list:
-        if false;
-
-
-      // ----------------------------------------------------------
-      // CREATE THREAD
-      // ----------------------------------------------------------
-
-      allow create:
-        if signedIn()
-
-        && request.resource.data.organizerUid
-          == request.auth.uid
-
-        && request.resource.data.originalSenderUid
-          == request.auth.uid
-
-        && request.resource.data.closed
-          == false
-
-        && (
-          request.resource.data.sharePolicy
-            == 'private'
-
-          ||
-
-          request.resource.data.sharePolicy
-            == 'shareable'
-        );
-
-
-      // ----------------------------------------------------------
-      // UPDATE THREAD
-      // ----------------------------------------------------------
-
-      allow update:
-        if signedIn()
-
-        && (
-
-          /*
-           * Thread ouvert :
-           * seule la date updatedAt
-           * peut être rafraîchie.
-           */
-          (
-            resource.data.closed == false
-
-            && request.resource.data
-              .diff(resource.data)
-              .affectedKeys()
-              .hasOnly([
-                'updatedAt'
-              ])
-          )
-
-          ||
-
-          /*
-           * Seul l'organisateur
-           * peut fermer le thread.
-           */
-          (
-            request.auth.uid
-              == resource.data.organizerUid
-
-            && resource.data.closed
-              == false
-
-            && request.resource.data.closed
-              == true
-
-            && request.resource.data.closedByUid
-              == request.auth.uid
-
-            && request.resource.data
-              .diff(resource.data)
-              .affectedKeys()
-              .hasOnly([
-                'closed',
-                'closedByUid',
-                'closedByCiriloId',
-                'closedAt',
-                'updatedAt'
-              ])
-          )
-        );
-
-
-      allow delete:
-        if false;
-
-
-      // ----------------------------------------------------------
-      // THREAD REPLIES
-      // ----------------------------------------------------------
-
-      match /replies/{replyId} {
-
-        allow read:
-          if signedIn();
-
-        /*
-         * Reply append-only.
-         */
-        allow create:
-          if signedIn()
-
-          && request.resource.data.senderUid
-            == request.auth.uid
-
-          && exists(
-            /databases/$(database)/documents/sharedThreads/$(threadId)
-          )
-
-          && get(
-            /databases/$(database)/documents/sharedThreads/$(threadId)
-          ).data.closed == false;
-
-        /*
-         * Une réponse envoyée
-         * ne peut plus être éditée ou supprimée.
-         */
-        allow update, delete:
-          if false;
+      match /tambaTemplates/{templateId} {
+        allow read, create, update, delete: if owner(uid);
       }
     }
 
+    match /publicUsers/{ciriloId} {
 
-    // ============================================================
-    // PUBLIC EVENTS
-    // ============================================================
+      allow read: if signedIn();
+
+      allow create, update: if signedIn()
+        && request.resource.data.uid == request.auth.uid;
+
+      allow delete: if signedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+
+    match /ciriloIds/{ciriloId} {
+
+      allow get: if signedIn();
+
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    match /sharedCards/{token} {
+
+      allow read: if resource.data.visibility == 'shared'
+        && resource.data.revoked == false;
+
+      allow create: if signedIn()
+        && request.resource.data.senderUid == request.auth.uid;
+
+      allow update, delete: if signedIn()
+        && resource.data.senderUid == request.auth.uid;
+    }
+
+    match /sharedNotes/{token} {
+
+      allow read: if resource.data.revoked == false;
+
+      allow create: if signedIn()
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.threadId is string
+        && threadExists(request.resource.data.threadId)
+        && threadData(request.resource.data.threadId).closed == false
+        && request.resource.data.sharePolicy
+          == threadData(request.resource.data.threadId).sharePolicy
+        && (
+          request.auth.uid == threadData(request.resource.data.threadId).organizerUid
+          ||
+          threadData(request.resource.data.threadId).sharePolicy == 'shareable'
+        );
+
+      allow update, delete: if false;
+    }
+
+    match /sharedThreads/{threadId} {
+
+      allow get: if signedIn();
+      allow list: if false;
+
+      allow create: if signedIn()
+        && request.resource.data.organizerUid == request.auth.uid
+        && request.resource.data.originalSenderUid == request.auth.uid
+        && request.resource.data.closed == false
+        && (
+          request.resource.data.sharePolicy == 'private'
+          ||
+          request.resource.data.sharePolicy == 'shareable'
+        );
+
+      allow update: if signedIn()
+        && (
+          (
+            resource.data.closed == false
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'updatedAt'
+            ])
+          )
+          ||
+          (
+            request.auth.uid == resource.data.organizerUid
+            && resource.data.closed == false
+            && request.resource.data.closed == true
+            && request.resource.data.closedByUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'closed',
+              'closedByUid',
+              'closedByCiriloId',
+              'closedAt',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if false;
+
+      match /replies/{replyId} {
+
+        allow read: if signedIn();
+
+        allow create: if signedIn()
+          && request.resource.data.senderUid == request.auth.uid
+          && exists(/databases/$(database)/documents/sharedThreads/$(threadId))
+          && get(/databases/$(database)/documents/sharedThreads/$(threadId)).data.closed == false;
+
+        allow update, delete: if false;
+      }
+    }
 
     match /publicEvents/{eventId} {
 
-      allow read:
-        if true;
+      allow read: if true;
 
-      allow create:
-        if signedIn()
-        && request.resource.data.ownerUid
-          == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid;
 
-      allow update:
-        if signedIn()
-        && resource.data.ownerUid
-          == request.auth.uid
-        && request.resource.data.ownerUid
-          == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == request.auth.uid;
 
-      allow delete:
-        if signedIn()
-        && resource.data.ownerUid
-          == request.auth.uid;
+      allow delete: if signedIn()
+        && resource.data.ownerUid == request.auth.uid;
     }
-
-
-    // ============================================================
-    // CHANNELS
-    // ============================================================
 
     match /channels/{channelId} {
 
-      allow read:
-        if true;
+      allow read: if true;
 
-      allow write:
-        if signedIn();
+      allow write: if signedIn();
     }
   }
 }

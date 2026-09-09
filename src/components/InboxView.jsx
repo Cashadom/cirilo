@@ -7,6 +7,7 @@ import {
   ChevronUp,
   Forward,
   Inbox,
+  ListTodo,
   MessageCircle,
   RotateCcw,
   Send,
@@ -38,6 +39,7 @@ export default function InboxView({
   addEvent,
   onNoteToWeek,
   onShareNoteItem,
+  onAddTamba,
 }) {
   const { firebaseUser, profile } = useAuth()
   const [items, setItems] = useState([])
@@ -209,6 +211,59 @@ export default function InboxView({
     }
   }
 
+  async function addTambaToWorkspace(item) {
+    try {
+      setError('')
+      await onAddTamba?.(item)
+      await markInboxItem(firebaseUser.uid, item.id, 'added')
+    } catch (err) {
+      console.error(err)
+      setError(err?.message || 'Could not add this job to Tamba Field Work.')
+    }
+  }
+
+  async function addTambaToWeek(item) {
+    try {
+      setError('')
+      const source = item.tambaJob || {}
+      const today = new Date().toISOString().slice(0, 10)
+
+      await addEvent({
+        id: crypto.randomUUID(),
+        title: source.title || item.title || 'Tamba Field Work',
+        category: 'tasks',
+        type: 'event',
+        date: source.date || today,
+        startTime: source.startTime || '09:00',
+        endTime: source.endTime || '10:00',
+        location: source.location || '',
+        people: '',
+        notes: [
+          source.client ? `Client / place: ${source.client}` : '',
+          source.notes || '',
+          ...(source.checklist || []).map(entry => `• ${entry.text || ''}`),
+        ].filter(Boolean).join('\n'),
+        reminder: '15 min before',
+        priority: 'normal',
+        completed: false,
+        visibility: 'private',
+        isSharedEvent: true,
+        lockedForRecipient: true,
+        sharedBy: item.senderCiriloId || '',
+        sharedByCiriloId: item.senderCiriloId || '',
+        originalSenderCiriloId:
+          item.originalSenderCiriloId || item.senderCiriloId || '',
+        sourceTambaJobId: source.sourceJobId || '',
+        sourceInboxId: item.id,
+      })
+
+      await markInboxItem(firebaseUser.uid, item.id, 'added')
+    } catch (err) {
+      console.error(err)
+      setError(err?.message || 'Could not add this job to your week.')
+    }
+  }
+
   async function archiveItem(item) {
     try {
       await archiveInboxItem(
@@ -283,6 +338,9 @@ export default function InboxView({
         : item.notePayload?.note?.title || 'Shared note'
     }
     if (item.type === 'reply') return 'Reply'
+    if (item.type === 'tamba_share') {
+      return item.tambaJob?.title || item.title || 'Tamba Field Work'
+    }
     return item.event?.title || item.title || item.subject || 'Inbox message'
   }
 
@@ -297,6 +355,22 @@ export default function InboxView({
     }
 
     if (item.type === 'reply') return item.message || ''
+
+    if (item.type === 'tamba_share') {
+      const job = item.tambaJob || {}
+      return [
+        job.client ? `Client / place: ${job.client}` : '',
+        job.location ? `Location: ${job.location}` : '',
+        job.date ? `Date: ${job.date}` : '',
+        job.startTime || job.endTime
+          ? `Time: ${job.startTime || '--:--'} — ${job.endTime || '--:--'}`
+          : '',
+        '',
+        ...(job.checklist || []).map(entry => `• ${entry.text || ''}`),
+        job.notes ? `\n${job.notes}` : '',
+      ].filter(Boolean).join('\n')
+    }
+
     return item.event?.notes || item.message || item.text || ''
   }
 
@@ -461,6 +535,24 @@ export default function InboxView({
                       <button className="secondary-btn compact" onClick={() => addEventShare(item)}>
                         <CalendarPlus size={14} /> Add to event
                       </button>
+                    )}
+
+                    {item.type === 'tamba_share' && item.status !== 'added' && (
+                      <>
+                        <button
+                          className="primary-btn compact"
+                          onClick={() => addTambaToWorkspace(item)}
+                        >
+                          <ListTodo size={14} /> Add to Tamba
+                        </button>
+
+                        <button
+                          className="secondary-btn compact"
+                          onClick={() => addTambaToWeek(item)}
+                        >
+                          <CalendarPlus size={14} /> Add to my week
+                        </button>
+                      </>
                     )}
 
                     {replyAllowed && !closed && (
