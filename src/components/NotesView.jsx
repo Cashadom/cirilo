@@ -227,6 +227,12 @@ export default function NotesView({
             const actionableCount = (note.items || []).filter(
               (block) => block.kind !== 'text' && block.status !== 'done'
             ).length
+            const hasFreeText = blocks.some(
+              (block) =>
+                block.kind === 'text' &&
+                String(block.text || '').trim()
+            )
+            const canDevelop = blocks.length > 1 || hasFreeText
 
             return (
               <article
@@ -311,7 +317,7 @@ export default function NotesView({
                           ) : null}
                         </span>
 
-                        <div className="note-item-actions">
+                        <div className={`note-item-actions${expanded ? "" : " collapsed-item-actions"}`}>
                           <button
                             title="Add to week"
                             onClick={() => handleAddToWeek(note, block)}
@@ -350,13 +356,15 @@ export default function NotesView({
                   )}
                 </div>
 
-                <button
-                  className="note-expand-button"
-                  onClick={() => toggleExpanded(note.id)}
-                >
-                  {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                  {expanded ? 'Reduce' : 'Develop'}
-                </button>
+                {canDevelop && (
+                  <button
+                    className="note-expand-button"
+                    onClick={() => toggleExpanded(note.id)}
+                  >
+                    {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                    {expanded ? 'Reduce' : 'Develop'}
+                  </button>
+                )}
 
                 <footer className="note-card-footer">
                   <span>

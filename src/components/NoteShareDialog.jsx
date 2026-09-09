@@ -1,13 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import {
-  AtSign,
-  Check,
-  Lock,
-  Mail,
-  Send,
-  Share2,
-  X,
-} from 'lucide-react'
+import React, { useState } from 'react'
+import { AtSign, Check, Mail, Send, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import {
   createSharedNoteLink,
@@ -15,89 +7,63 @@ import {
   openNoteEmailClient,
   shareNoteToCirilo,
 } from '../services/notesService'
-import { getSharePolicy } from '../services/sharePermissions'
+import { resolveCiriloContact, touchSharedContacts } from '../services/contactService'
+import SharePicker from './SharePicker'
 
-export default function NoteShareDialog({
-  open,
-  payload,
-  onClose,
-  onShared,
-}) {
+export default function NoteShareDialog({ open, payload, onClose, onShared }) {
   const { firebaseUser, profile } = useAuth()
   const [mode, setMode] = useState('cirilo')
-  const [value, setValue] = useState('')
+  const [recipientIds, setRecipientIds] = useState([])
+  const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
 
-  const policy = useMemo(() => {
-    if (!payload) return 'private'
-    return getSharePolicy(payload.type === 'note' ? payload.note : payload)
-  }, [payload])
-
   if (!open || !payload || !firebaseUser) return null
 
-  const valid =
-    mode === 'cirilo'
-      ? /^cirilo_\d{6,10}$/i.test(value.trim())
-      : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
-
-  const title =
-    payload.type === 'item' ? payload.item?.text : payload.note?.title
-
-  const isForward = Boolean(payload.threadId)
-  const forwardingBlocked = isForward && policy === 'private'
+  const title = payload.type === 'item' ? payload.item?.text : payload.note?.title
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  const valid = mode === 'cirilo' ? recipientIds.length > 0 : emailValid
 
   async function send() {
-    if (!valid || forwardingBlocked) return
-
+    if (!valid) return
     setError('')
 
     const sender = {
       uid: firebaseUser.uid,
       ciriloId: profile?.ciriloId || '',
-      displayName:
-        profile?.displayName || firebaseUser.displayName || 'Cirilo user',
+      displayName: profile?.displayName || firebaseUser.displayName || 'Cirilo user',
       photoURL: profile?.photoURL || firebaseUser.photoURL || '',
-    }
-
-    const sharePayload = {
-      ...payload,
-      sharePolicy: policy,
-      visibility: policy === 'shareable' ? 'shared' : 'private',
-      threadId: payload.threadId || '',
     }
 
     try {
       if (mode === 'cirilo') {
-        await shareNoteToCirilo({
-          sender,
-          recipientCiriloId: value.trim().toLowerCase(),
-          payload: sharePayload,
-        })
+        const uniqueIds = [...new Set(recipientIds.map(id => id.trim().toLowerCase()).filter(Boolean))]
+
+        // Keep one immutable Notes thread for every recipient of the same share.
+        let threadId = payload.threadId || ''
+
+        for (const recipientCiriloId of uniqueIds) {
+          threadId = await shareNoteToCirilo({
+            sender,
+            recipientCiriloId,
+            payload: threadId ? { ...payload, threadId } : payload,
+          })
+        }
+
+        const recipients = await Promise.all(uniqueIds.map(id => resolveCiriloContact(id)))
+        await touchSharedContacts(firebaseUser.uid, recipients)
       } else {
         const share = await createSharedNoteLink({
           sender,
-          recipientEmail: value.trim().toLowerCase(),
-          payload: sharePayload,
+          recipientEmail: email.trim().toLowerCase(),
+          payload,
         })
 
-        openNoteEmailClient({
-          senderName: sender.displayName,
-          share: { ...share, payload: sharePayload },
-        })
+        openNoteEmailClient({ senderName: sender.displayName, share: { ...share, payload } })
       }
 
-      if (
-        payload.type === 'item' &&
-        payload.noteId &&
-        payload.item?.id &&
-        !isForward
-      ) {
-        await markNoteItemShared(
-          firebaseUser.uid,
-          payload.noteId,
-          payload.item.id
-        )
+      if (payload.type === 'item' && payload.noteId && payload.item?.id) {
+        await markNoteItemShared(firebaseUser.uid, payload.noteId, payload.item.id)
       }
 
       await onShared?.()
@@ -105,117 +71,55 @@ export default function NoteShareDialog({
 
       setTimeout(() => {
         setSent(false)
-        setValue('')
+        setRecipientIds([])
+        setEmail('')
         onClose()
       }, 800)
     } catch (err) {
-      setError(err.message || 'Could not share this.')
+      setError(err?.message || 'Could not share this.')
     }
   }
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="share-event-dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+      <div className="share-event-dialog" onMouseDown={event => event.stopPropagation()}>
         <div className="share-event-head">
           <div>
-            <span className="eyebrow">{isForward ? 'Forward' : 'Share'}</span>
+            <span className="eyebrow">Share</span>
             <h2>{title}</h2>
           </div>
+          <button className="icon-btn" onClick={onClose}><X size={18} /></button>
+        </div>
 
-          <button className="icon-btn" onClick={onClose}>
-            <X size={18} />
+        <div className="share-mode-tabs">
+          <button className={mode === 'cirilo' ? 'active' : ''} onClick={() => { setMode('cirilo'); setError('') }}>
+            <AtSign size={15} /> Cirilo
+          </button>
+          <button className={mode === 'email' ? 'active' : ''} onClick={() => { setMode('email'); setError('') }}>
+            <Mail size={15} /> Email
           </button>
         </div>
 
-        <div className={`share-policy-box ${policy}`}>
-          {policy === 'shareable' ? <Share2 size={14} /> : <Lock size={14} />}
-          <div>
-            <strong>{policy === 'shareable' ? 'Shareable' : 'Private'}</strong>
-            <small>
-              {policy === 'shareable'
-                ? 'Recipients may forward it. The original content stays locked.'
-                : 'Recipients can read and reply, but cannot forward it.'}
-            </small>
-          </div>
+        {mode === 'cirilo' ? (
+          <SharePicker value={recipientIds} onChange={setRecipientIds} title="Share note with" compact />
+        ) : (
+          <label className="field">
+            Recipient email
+            <input autoFocus value={email} onChange={event => setEmail(event.target.value)} placeholder="friend@gmail.com" />
+          </label>
+        )}
+
+        <div className="share-preview">
+          <span>They will receive</span>
+          <p>Shared by @{profile?.ciriloId}</p>
+          <strong>{title}</strong>
         </div>
 
-        {forwardingBlocked ? (
-          <div className="form-error">
-            This content is private. Only the original organizer can share it
-            with another person.
-          </div>
-        ) : (
-          <>
-            <div className="share-mode-tabs">
-              <button
-                className={mode === 'cirilo' ? 'active' : ''}
-                onClick={() => {
-                  setMode('cirilo')
-                  setValue('')
-                  setError('')
-                }}
-              >
-                <AtSign size={15} />
-                Cirilo ID
-              </button>
+        {error && <p className="auth-error">{error}</p>}
 
-              <button
-                className={mode === 'email' ? 'active' : ''}
-                onClick={() => {
-                  setMode('email')
-                  setValue('')
-                  setError('')
-                }}
-              >
-                <Mail size={15} />
-                Email
-              </button>
-            </div>
-
-            <label className="field">
-              {mode === 'cirilo' ? 'Recipient Cirilo ID' : 'Recipient email'}
-              <input
-                autoFocus
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                placeholder={
-                  mode === 'cirilo' ? 'cirilo_828621' : 'friend@gmail.com'
-                }
-              />
-            </label>
-
-            <div className="share-preview">
-              <span>They will receive</span>
-              <p>
-                {isForward
-                  ? `Original from ${payload.originalSenderCiriloId || 'Cirilo'} · forwarded by ${profile?.ciriloId || ''}`
-                  : `From ${profile?.ciriloId || ''}`}
-              </p>
-              <strong>{title}</strong>
-            </div>
-
-            {error && <p className="auth-error">{error}</p>}
-
-            <button
-              className="primary-btn share-send"
-              disabled={!valid || sent}
-              onClick={send}
-            >
-              {sent ? (
-                <>
-                  <Check size={15} /> Sent
-                </>
-              ) : (
-                <>
-                  <Send size={15} /> {isForward ? 'Forward' : 'Share'}
-                </>
-              )}
-            </button>
-          </>
-        )}
+        <button className="primary-btn share-send" disabled={!valid || sent} onClick={send}>
+          {sent ? <><Check size={15} /> Sent</> : <><Send size={15} /> {mode === 'cirilo' && recipientIds.length > 1 ? `Share with ${recipientIds.length} people` : 'Share'}</>}
+        </button>
       </div>
     </div>
   )

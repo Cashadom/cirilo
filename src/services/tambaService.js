@@ -1,14 +1,13 @@
 import {
+  addDoc,
   collection,
   deleteDoc,
   doc,
-  getDocs,
+  getDoc,
   onSnapshot,
-  query,
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
 } from 'firebase/firestore'
 import {
   getDownloadURL,
@@ -35,12 +34,8 @@ function cleanChecklist(checklist = []) {
     .filter(item => item.text)
 }
 
-function recipientEventId(ownerUid, jobId) {
-  return `tamba_${ownerUid}_${jobId}`
-}
-
-function recipientInboxId(ownerUid, jobId) {
-  return `tamba_${ownerUid}_${jobId}`
+function normalizeCiriloId(value = '') {
+  return String(value || '').trim().toLowerCase()
 }
 
 export function subscribeToTambaJobs(uid, onData, onError) {
@@ -49,11 +44,7 @@ export function subscribeToTambaJobs(uid, onData, onError) {
   return onSnapshot(
     jobCollection(uid),
     snapshot => {
-      const rows = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }))
-      onData(rows)
+      onData(snapshot.docs.map(item => ({ id: item.id, ...item.data() })))
     },
     onError
   )
@@ -65,13 +56,8 @@ export function subscribeToTambaTemplates(uid, onData, onError) {
   return onSnapshot(
     templateCollection(uid),
     snapshot => {
-      const rows = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      }))
-      rows.sort((a, b) =>
-        String(a.name || '').localeCompare(String(b.name || ''))
-      )
+      const rows = snapshot.docs.map(item => ({ id: item.id, ...item.data() }))
+      rows.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
       onData(rows)
     },
     onError
@@ -79,138 +65,27 @@ export function subscribeToTambaTemplates(uid, onData, onError) {
 }
 
 export async function resolveCiriloUser(ciriloId) {
-  const normalized = String(ciriloId || '').trim()
-  if (!normalized) return null
+  const normalized = normalizeCiriloId(ciriloId)
+  if (!/^cirilo_\d{6}$/i.test(normalized)) {
+    throw new Error(`Invalid Cirilo ID: ${normalized || 'empty'}`)
+  }
 
-  const idsQuery = query(
-    collection(db, 'publicUsers'),
-    where('ciriloId', '==', normalized)
-  )
+  const snapshot = await getDoc(doc(db, 'publicUsers', normalized))
+  if (!snapshot.exists()) {
+    throw new Error(`Cirilo ID ${normalized} was not found.`)
+  }
 
-  const snapshot = await getDocs(idsQuery)
-  if (snapshot.empty) return null
-
-  const hit = snapshot.docs[0]
-
+  const data = snapshot.data()
   return {
-    uid: hit.id,
-    ...hit.data(),
+    uid: data.uid || '',
+    ciriloId: normalized,
+    displayName: data.displayName || 'Cirilo user',
+    photoURL: data.photoURL || '',
   }
 }
 
-function buildRecipientEvent({
-  ownerUid,
-  ownerCiriloId,
-  assignee,
-  jobId,
-  payload,
-}) {
+function cleanJobPayload({ ownerUid, ownerCiriloId, job }) {
   return {
-    title: payload.title || 'Tamba Field Work',
-    category: 'tasks',
-    type: 'event',
-    date: payload.date,
-    startTime: payload.startTime || '09:00',
-    endTime: payload.endTime || '10:00',
-    location: payload.location || '',
-    people: ownerCiriloId || '',
-    notes: [
-      payload.client ? `Client / place: ${payload.client}` : '',
-      payload.notes || '',
-      ...(payload.checklist || []).map(item => `• ${item.text}`),
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    reminder: '15 min before',
-    priority: 'normal',
-    completed: false,
-    visibility: 'private',
-
-    isSharedEvent: true,
-    lockedForRecipient: true,
-    tambaAutoAssigned: true,
-
-    assignedToUid: assignee.uid,
-    assignedToCiriloId: payload.assignedToCiriloId,
-
-    createdByUid: ownerUid,
-    createdByCiriloId: ownerCiriloId || '',
-    sharedBy: ownerCiriloId || '',
-    sharedByCiriloId: ownerCiriloId || '',
-
-    sourceTambaJobId: jobId,
-    sourceOwnerUid: ownerUid,
-
-    updatedAt: serverTimestamp(),
-  }
-}
-
-function buildInboxShare({
-  ownerUid,
-  ownerCiriloId,
-  assignee,
-  jobId,
-  payload,
-}) {
-  return {
-    type: 'tamba_share',
-    status: 'new',
-
-    senderUid: ownerUid,
-    senderCiriloId: ownerCiriloId || '',
-    originalSenderUid: ownerUid,
-    originalSenderCiriloId: ownerCiriloId || '',
-
-    recipientUid: assignee.uid,
-    recipientCiriloId: payload.assignedToCiriloId,
-
-    title: payload.title || 'Tamba Field Work',
-    message: payload.notes || '',
-    sharePolicy: 'private',
-    closed: false,
-
-    tambaJob: {
-      sourceJobId: jobId,
-      sourceOwnerUid: ownerUid,
-      sourceOwnerCiriloId: ownerCiriloId || '',
-      title: payload.title,
-      client: payload.client,
-      location: payload.location,
-      date: payload.date,
-      startTime: payload.startTime,
-      endTime: payload.endTime,
-      checklist: payload.checklist,
-      notes: payload.notes,
-      proofPhotoUrl: payload.proofPhotoUrl,
-    },
-
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  }
-}
-
-export async function saveTambaJob({
-  ownerUid,
-  ownerCiriloId,
-  job,
-}) {
-  if (!ownerUid) {
-    throw new Error('Missing owner UID.')
-  }
-
-  const requestedCiriloId = String(job.assignedToCiriloId || '').trim()
-  const assignee = requestedCiriloId
-    ? await resolveCiriloUser(requestedCiriloId)
-    : null
-
-  if (requestedCiriloId && !assignee) {
-    throw new Error(`Cirilo ID ${requestedCiriloId} was not found.`)
-  }
-
-  const previousAssigneeUid = job.assignedToUid || ''
-  const jobId = job.id || crypto.randomUUID()
-
-  const payload = {
     title: String(job.title || '').trim(),
     client: String(job.client || '').trim(),
     location: String(job.location || '').trim(),
@@ -218,228 +93,189 @@ export async function saveTambaJob({
     startTime: job.startTime || '',
     endTime: job.endTime || '',
 
-    assignedToCiriloId: requestedCiriloId,
-    assignedToUid: assignee?.uid || '',
-    assignedToName: assignee?.displayName || '',
+    // Legacy fields stay readable, but sharing no longer depends on one assignee.
+    assignedToCiriloId: '',
+    assignedToUid: '',
+    assignedToName: '',
 
     status: job.status || 'scheduled',
     checklist: cleanChecklist(job.checklist),
     notes: String(job.notes || '').trim(),
     proofPhotoUrl: job.proofPhotoUrl || '',
-
     sourceTemplateId: job.sourceTemplateId || '',
     sourceTemplateName: job.sourceTemplateName || '',
-
     createdByUid: job.createdByUid || ownerUid,
     createdByCiriloId: job.createdByCiriloId || ownerCiriloId || '',
-
-    archived: false,
-    archivedAt: null,
-
+    archived: Boolean(job.archived),
+    archivedAt: job.archivedAt || null,
     createdAt: job.createdAt || serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
+}
 
-  const ownerRef = doc(db, 'users', ownerUid, 'tambaJobs', jobId)
+export async function saveTambaJob({ ownerUid, ownerCiriloId, job }) {
+  if (!ownerUid) throw new Error('Missing owner UID.')
 
-  // Always save the creator's Tamba job first.
-  await setDoc(ownerRef, payload, { merge: true })
+  const jobId = job.id || crypto.randomUUID()
+  const payload = cleanJobPayload({ ownerUid, ownerCiriloId, job })
 
-  // Remove old recipient agenda entry if assignment changed or was cleared.
-  if (
-    previousAssigneeUid &&
-    previousAssigneeUid !== assignee?.uid &&
-    previousAssigneeUid !== ownerUid
-  ) {
-    await deleteDoc(
-      doc(
-        db,
-        'users',
-        previousAssigneeUid,
-        'events',
-        recipientEventId(ownerUid, jobId)
-      )
-    ).catch(() => {})
+  await setDoc(
+    doc(db, 'users', ownerUid, 'tambaJobs', jobId),
+    payload,
+    { merge: true }
+  )
 
-    await deleteDoc(
-      doc(
-        db,
-        'users',
-        previousAssigneeUid,
-        'inbox',
-        recipientInboxId(ownerUid, jobId)
-      )
-    ).catch(() => {})
-  }
+  return { id: jobId, ...payload }
+}
 
-  // If a Cirilo ID is provided:
-  // 1) send it to the recipient Inbox
-  // 2) automatically put it in the recipient Cirilo agenda
-  if (assignee && assignee.uid !== ownerUid) {
-    await setDoc(
-      doc(
-        db,
-        'users',
-        assignee.uid,
-        'inbox',
-        recipientInboxId(ownerUid, jobId)
-      ),
-      buildInboxShare({
-        ownerUid,
-        ownerCiriloId,
-        assignee,
-        jobId,
-        payload,
-      }),
-      { merge: true }
-    )
-
-    await setDoc(
-      doc(
-        db,
-        'users',
-        assignee.uid,
-        'events',
-        recipientEventId(ownerUid, jobId)
-      ),
-      buildRecipientEvent({
-        ownerUid,
-        ownerCiriloId,
-        assignee,
-        jobId,
-        payload,
-      }),
-      { merge: true }
-    )
-  }
-
+function buildInboxTambaShare({ sender, recipient, job }) {
   return {
-    id: jobId,
-    ...payload,
+    type: 'tamba_share',
+    status: 'new',
+
+    senderUid: sender.uid,
+    senderCiriloId: sender.ciriloId || '',
+    senderName: sender.displayName || 'Cirilo user',
+    senderPhotoURL: sender.photoURL || '',
+
+    originalSenderUid: sender.uid,
+    originalSenderCiriloId: sender.ciriloId || '',
+
+    recipientUid: recipient.uid,
+    recipientCiriloId: recipient.ciriloId,
+
+    title: job.title || 'Field Work',
+    message: job.notes || '',
+    sharePolicy: 'private',
+    closed: false,
+
+    tambaJob: {
+      sourceJobId: job.id,
+      sourceOwnerUid: sender.uid,
+      sourceOwnerCiriloId: sender.ciriloId || '',
+      title: String(job.title || '').trim(),
+      client: String(job.client || '').trim(),
+      location: String(job.location || '').trim(),
+      date: job.date || '',
+      startTime: job.startTime || '09:00',
+      endTime: job.endTime || '10:00',
+      checklist: cleanChecklist(job.checklist),
+      notes: String(job.notes || '').trim(),
+      proofPhotoUrl: job.proofPhotoUrl || '',
+      sharedSnapshot: true,
+    },
+
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   }
 }
 
-export async function acceptTambaInboxJob({
-  uid,
-  ciriloId,
-  inboxItem,
+export async function shareTambaJobToCiriloMany({
+  senderUid,
+  senderCiriloId,
+  senderName,
+  senderPhotoURL,
+  recipientCiriloIds,
+  job,
 }) {
+  if (!senderUid) throw new Error('Missing sender account.')
+  if (!job?.id) throw new Error('Save the job before sharing it.')
+
+  const cleanIds = [...new Set(
+    (recipientCiriloIds || []).map(normalizeCiriloId).filter(Boolean)
+  )]
+
+  if (!cleanIds.length) throw new Error('Choose at least one person.')
+
+  const recipients = await Promise.all(cleanIds.map(resolveCiriloUser))
+
+  const sender = {
+    uid: senderUid,
+    ciriloId: normalizeCiriloId(senderCiriloId),
+    displayName: senderName || 'Cirilo user',
+    photoURL: senderPhotoURL || '',
+  }
+
+  const validRecipients = recipients.filter(recipient => recipient.uid && recipient.uid !== senderUid)
+
+  if (!validRecipients.length) {
+    throw new Error('Choose at least one other Cirilo user.')
+  }
+
+  await Promise.all(
+    validRecipients.map(recipient =>
+      addDoc(
+        collection(db, 'users', recipient.uid, 'inbox'),
+        buildInboxTambaShare({ sender, recipient, job })
+      )
+    )
+  )
+
+  return validRecipients
+}
+
+export async function acceptTambaInboxJob({ uid, ciriloId, inboxItem }) {
   if (!uid) throw new Error('Missing user UID.')
-  if (!inboxItem?.tambaJob) throw new Error('Tamba job is missing.')
+  if (!inboxItem?.tambaJob) throw new Error('Field Work job is missing.')
 
   const source = inboxItem.tambaJob
   const localId = source.sourceJobId
-    ? `received_${source.sourceJobId}`
+    ? `received_${source.sourceJobId}_${inboxItem.id || crypto.randomUUID()}`
     : crypto.randomUUID()
 
   const payload = {
-    title: String(source.title || inboxItem.title || 'Tamba Field Work').trim(),
+    title: String(source.title || inboxItem.title || 'Field Work').trim(),
     client: String(source.client || '').trim(),
     location: String(source.location || '').trim(),
     date: source.date || '',
     startTime: source.startTime || '09:00',
     endTime: source.endTime || '10:00',
-
-    assignedToCiriloId: ciriloId || '',
-    assignedToUid: uid,
+    assignedToCiriloId: '',
+    assignedToUid: '',
     assignedToName: '',
-
     status: 'scheduled',
     checklist: cleanChecklist(source.checklist),
     notes: String(source.notes || '').trim(),
     proofPhotoUrl: source.proofPhotoUrl || '',
-
-    sourceOwnerUid:
-      source.sourceOwnerUid ||
-      inboxItem.senderUid ||
-      inboxItem.originalSenderUid ||
-      '',
-    sourceOwnerCiriloId:
-      source.sourceOwnerCiriloId ||
-      inboxItem.senderCiriloId ||
-      inboxItem.originalSenderCiriloId ||
-      '',
+    sourceOwnerUid: source.sourceOwnerUid || inboxItem.senderUid || '',
+    sourceOwnerCiriloId: source.sourceOwnerCiriloId || inboxItem.senderCiriloId || '',
     sourceJobId: source.sourceJobId || '',
-
-    createdByUid:
-      inboxItem.senderUid ||
-      inboxItem.originalSenderUid ||
-      '',
-    createdByCiriloId:
-      inboxItem.senderCiriloId ||
-      inboxItem.originalSenderCiriloId ||
-      '',
-
+    createdByUid: inboxItem.senderUid || '',
+    createdByCiriloId: inboxItem.senderCiriloId || '',
     receivedFromInboxId: inboxItem.id || '',
     localCopy: true,
-
     archived: false,
     archivedAt: null,
-
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
 
-  await setDoc(
-    doc(db, 'users', uid, 'tambaJobs', localId),
-    payload,
-    { merge: true }
-  )
+  await setDoc(doc(db, 'users', uid, 'tambaJobs', localId), payload, { merge: true })
 
-  return {
-    id: localId,
-    ...payload,
-  }
+  return { id: localId, ...payload }
 }
 
 export async function archiveTambaJob(uid, job) {
-  if (!uid || !job?.id) {
-    throw new Error('Job could not be archived.')
-  }
+  if (!uid || !job?.id) throw new Error('Job could not be archived.')
 
-  await updateDoc(
-    doc(db, 'users', uid, 'tambaJobs', job.id),
-    {
-      archived: true,
-      archivedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    }
-  )
-
-  // Remove the automatic recipient calendar copy when the creator archives it.
-  if (job.assignedToUid && job.assignedToUid !== uid) {
-    await deleteDoc(
-      doc(
-        db,
-        'users',
-        job.assignedToUid,
-        'events',
-        recipientEventId(uid, job.id)
-      )
-    ).catch(() => {})
-  }
+  await updateDoc(doc(db, 'users', uid, 'tambaJobs', job.id), {
+    archived: true,
+    archivedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
 }
 
 export async function restoreTambaJob(uid, job) {
-  if (!uid || !job?.id) {
-    throw new Error('Job could not be restored.')
-  }
+  if (!uid || !job?.id) throw new Error('Job could not be restored.')
 
-  await updateDoc(
-    doc(db, 'users', uid, 'tambaJobs', job.id),
-    {
-      archived: false,
-      archivedAt: null,
-      updatedAt: serverTimestamp(),
-    }
-  )
+  await updateDoc(doc(db, 'users', uid, 'tambaJobs', job.id), {
+    archived: false,
+    archivedAt: null,
+    updatedAt: serverTimestamp(),
+  })
 }
 
-export async function updateTambaJobStatus({
-  currentUid,
-  job,
-  status,
-}) {
+export async function updateTambaJobStatus({ currentUid, job, status }) {
   const payload = {
     status,
     checklist: cleanChecklist(job.checklist),
@@ -448,53 +284,19 @@ export async function updateTambaJobStatus({
     updatedAt: serverTimestamp(),
   }
 
-  if (status === 'in_progress') {
-    payload.startedAt = serverTimestamp()
-  }
+  if (status === 'in_progress') payload.startedAt = serverTimestamp()
+  if (status === 'completed') payload.completedAt = serverTimestamp()
 
-  if (status === 'completed') {
-    payload.completedAt = serverTimestamp()
-  }
-
-  await updateDoc(
-    doc(db, 'users', currentUid, 'tambaJobs', job.id),
-    payload
-  )
+  await updateDoc(doc(db, 'users', currentUid, 'tambaJobs', job.id), payload)
 }
 
 export async function deleteTambaJob(uid, job) {
   if (!uid || !job?.id) return
-
-  await deleteDoc(
-    doc(db, 'users', uid, 'tambaJobs', job.id)
-  )
-
-  if (job.assignedToUid && job.assignedToUid !== uid) {
-    await deleteDoc(
-      doc(
-        db,
-        'users',
-        job.assignedToUid,
-        'events',
-        recipientEventId(uid, job.id)
-      )
-    ).catch(() => {})
-
-    await deleteDoc(
-      doc(
-        db,
-        'users',
-        job.assignedToUid,
-        'inbox',
-        recipientInboxId(uid, job.id)
-      )
-    ).catch(() => {})
-  }
+  await deleteDoc(doc(db, 'users', uid, 'tambaJobs', job.id))
 }
 
 export async function saveTambaTemplate(uid, template) {
   const templateId = template.id || crypto.randomUUID()
-
   const payload = {
     name: String(template.name || '').trim(),
     description: String(template.description || '').trim(),
@@ -514,16 +316,11 @@ export async function saveTambaTemplate(uid, template) {
     { merge: true }
   )
 
-  return {
-    id: templateId,
-    ...payload,
-  }
+  return { id: templateId, ...payload }
 }
 
 export async function deleteTambaTemplate(uid, templateId) {
-  await deleteDoc(
-    doc(db, 'users', uid, 'tambaTemplates', templateId)
-  )
+  await deleteDoc(doc(db, 'users', uid, 'tambaTemplates', templateId))
 }
 
 export function makeJobFromTemplate(template, today) {
@@ -537,6 +334,7 @@ export function makeJobFromTemplate(template, today) {
     endTime: '10:00',
     assignedToCiriloId: '',
     assignedToUid: '',
+    assignedToName: '',
     status: 'scheduled',
     checklist: (template?.checklist || []).map(item => ({
       id: crypto.randomUUID(),
@@ -552,31 +350,13 @@ export function makeJobFromTemplate(template, today) {
 }
 
 export async function uploadTambaProofPhoto(uid, jobId, file) {
-  if (!uid || !jobId || !file) {
-    throw new Error('Missing upload information.')
-  }
+  if (!uid || !jobId || !file) throw new Error('Missing upload information.')
+  if (!file.type?.startsWith('image/')) throw new Error('Please select an image file.')
+  if (file.size > 8 * 1024 * 1024) throw new Error('Image must be smaller than 8 MB.')
 
-  if (!file.type?.startsWith('image/')) {
-    throw new Error('Please select an image file.')
-  }
+  const extension = file.name?.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'jpg'
+  const storageRef = ref(storage, `users/${uid}/tamba/${jobId}/proof-${Date.now()}.${extension}`)
 
-  const maxBytes = 8 * 1024 * 1024
-
-  if (file.size > maxBytes) {
-    throw new Error('Image must be smaller than 8 MB.')
-  }
-
-  const extension =
-    file.name?.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'jpg'
-
-  const storageRef = ref(
-    storage,
-    `users/${uid}/tamba/${jobId}/proof-${Date.now()}.${extension}`
-  )
-
-  await uploadBytes(storageRef, file, {
-    contentType: file.type,
-  })
-
+  await uploadBytes(storageRef, file, { contentType: file.type })
   return getDownloadURL(storageRef)
 }

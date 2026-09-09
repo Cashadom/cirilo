@@ -14,10 +14,13 @@ import {
   Save,
   Send,
   Trash2,
-  UserRound,
   X,
 } from 'lucide-react'
 import '../tamba.css'
+import SharePicker from './SharePicker'
+import { useAuth } from '../context/AuthContext'
+import { shareTambaJobToCiriloMany } from '../services/tambaService'
+import { touchSharedContacts } from '../services/contactService'
 
 function newChecklistItem(text = '') {
   return {
@@ -86,9 +89,6 @@ function buildShareText(job) {
     job.startTime || job.endTime
       ? `Time: ${job.startTime || '--:--'} - ${job.endTime || '--:--'}`
       : '',
-    job.assignedToCiriloId
-      ? `Cirilo ID: ${job.assignedToCiriloId}`
-      : '',
     '',
     checklist ? 'Checklist:' : '',
     checklist,
@@ -113,7 +113,10 @@ export default function TambaJobModal({
   onShareCirilo,
   onAddToAgenda,
 }) {
+  const { profile, firebaseUser } = useAuth()
   const [form, setForm] = useState(() => normalizeJob(draft, today))
+  const [shareRecipientIds, setShareRecipientIds] = useState([])
+  const [sharePickerOpen, setSharePickerOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [actionBusy, setActionBusy] = useState('')
@@ -128,6 +131,8 @@ export default function TambaJobModal({
       setSaving(false)
       setUploading(false)
       setActionBusy('')
+      setShareRecipientIds([])
+      setSharePickerOpen(false)
     }
   }, [open, draft, today])
 
@@ -148,7 +153,9 @@ export default function TambaJobModal({
     title: form.title.trim(),
     client: form.client.trim(),
     location: form.location.trim(),
-    assignedToCiriloId: form.assignedToCiriloId.trim(),
+    assignedToCiriloId: '',
+    assignedToUid: '',
+    assignedToName: '',
     notes: form.notes.trim(),
     checklist: form.checklist
       .map(item => ({ ...item, text: item.text.trim() }))
@@ -327,7 +334,7 @@ export default function TambaJobModal({
       ['LOCATION', form.location || '—'],
       ['DATE', form.date || '—'],
       ['TIME', `${form.startTime || '--:--'}  —  ${form.endTime || '--:--'}`],
-      ['CIRILO ID', form.assignedToCiriloId || 'Unassigned'],
+      ['CHECKLIST', `${checklistDone}/${form.checklist.length} completed`],
       ['STATUS', statusLabel],
     ]
 
@@ -482,18 +489,38 @@ export default function TambaJobModal({
       setError(validationError)
       return
     }
-    if (!form.assignedToCiriloId.trim()) {
-      setError('Enter a Cirilo ID to share this job.')
+    if (!shareRecipientIds.length) {
+      setError('Choose at least one Cirilo user or team.')
       return
     }
 
     setActionBusy('cirilo')
     setError('')
     setMessage('')
+
     try {
-      const saved = await onShareCirilo(cleanPayload())
+      const saved = await onSave(cleanPayload())
+      const jobToShare = saved ? { ...cleanPayload(), ...saved } : cleanPayload()
+
+      if (!jobToShare.id) {
+        throw new Error('Save the job before sharing it.')
+      }
+
+      const recipients = await shareTambaJobToCiriloMany({
+        senderUid: firebaseUser?.uid || currentUser?.uid || '',
+        senderCiriloId: profile?.ciriloId || currentUser?.ciriloId || '',
+        senderName: profile?.displayName || firebaseUser?.displayName || 'Cirilo user',
+        senderPhotoURL: profile?.photoURL || firebaseUser?.photoURL || '',
+        recipientCiriloIds: shareRecipientIds,
+        job: jobToShare,
+      })
+
+      await touchSharedContacts(firebaseUser?.uid || currentUser?.uid || '', recipients)
+
       if (saved) setForm(prev => ({ ...prev, ...saved }))
-      setMessage('Shared to Cirilo Inbox and added to the recipient agenda.')
+      setMessage(`Shared to ${recipients.length} Cirilo Inbox${recipients.length > 1 ? 'es' : ''}.`)
+      setSharePickerOpen(false)
+      setShareRecipientIds([])
     } catch (err) {
       setError(err?.message || 'Could not share this job.')
     } finally {
@@ -539,6 +566,7 @@ export default function TambaJobModal({
   const isArchived = Boolean(form.archived)
   const canEditCore = isCreator && form.status !== 'completed' && !isArchived
   const isAssignee =
+    Boolean(form.localCopy || form.receivedFromInboxId || form.sourceOwnerUid) ||
     form.assignedToUid === currentUser?.uid ||
     (form.assignedToCiriloId &&
       form.assignedToCiriloId === currentUser?.ciriloId)
@@ -618,21 +646,6 @@ export default function TambaJobModal({
                   onChange={event => update({ date: event.target.value })}
                   disabled={!canEditCore}
                 />
-              </label>
-
-              <label className="field">
-                Cirilo ID (optional)
-                <span className="tamba-input-icon">
-                  <UserRound size={14} />
-                  <input
-                    value={form.assignedToCiriloId}
-                    onChange={event =>
-                      update({ assignedToCiriloId: event.target.value })
-                    }
-                    placeholder="cirilo_XXXXXX"
-                    disabled={!canEditCore}
-                  />
-                </span>
               </label>
 
               <label className="field">
@@ -841,17 +854,15 @@ export default function TambaJobModal({
               <button
                 type="button"
                 className="tamba-rail-btn"
-                onClick={shareCirilo}
-                disabled={actionBusy === 'cirilo'}
+                onClick={() => {
+                  setSharePickerOpen(true)
+                  setError('')
+                }}
               >
                 <Send size={15} />
                 <span>
-                  <strong>Share to Cirilo ID</strong>
-                  <small>
-                    {form.assignedToCiriloId.trim()
-                      ? form.assignedToCiriloId.trim()
-                      : 'Enter an ID on the left'}
-                  </small>
+                  <strong>Share in Cirilo</strong>
+                  <small>Contacts, favorites or teams</small>
                 </span>
               </button>
             )}
@@ -891,6 +902,41 @@ export default function TambaJobModal({
           </aside>
         </div>
       </div>
+      {sharePickerOpen && (
+        <div className="tamba-share-picker-overlay" onMouseDown={() => setSharePickerOpen(false)}>
+          <div className="tamba-share-picker-card" onMouseDown={event => event.stopPropagation()}>
+            <div className="share-event-head">
+              <div>
+                <span className="eyebrow">Share Field Work</span>
+                <h2>{form.title || 'Job'}</h2>
+              </div>
+              <button className="icon-btn" type="button" onClick={() => setSharePickerOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <SharePicker
+              value={shareRecipientIds}
+              onChange={setShareRecipientIds}
+              title="Share with"
+            />
+
+            <div className="share-picker-dialog-actions">
+              <button className="secondary-btn" type="button" onClick={() => setSharePickerOpen(false)}>Cancel</button>
+              <button
+                className="primary-btn"
+                type="button"
+                disabled={!shareRecipientIds.length || actionBusy === 'cirilo'}
+                onClick={shareCirilo}
+              >
+                <Send size={15} />
+                {shareRecipientIds.length > 1 ? `Share with ${shareRecipientIds.length} people` : 'Share'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

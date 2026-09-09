@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { CATEGORIES } from '../utils/calendar'
+import SharePicker from './SharePicker'
 import {
   parseCiriloRecipients,
   parseEmailRecipients,
@@ -720,24 +721,14 @@ export default function EventModal({
           {form.visibility === 'shared' &&
             !locked && (
               <>
-                <label className="field span-2">
-                  Invite Cirilo users
-
-                  <textarea
-                    rows="2"
-                    value={ciriloInput}
-                    onChange={(event) =>
-                      setCiriloInput(
-                        event.target.value
-                      )
-                    }
-                    placeholder="cirilo_828621, cirilo_262086"
+                <div className="field span-2">
+                  <SharePicker
+                    value={parseCiriloRecipients(ciriloInput)}
+                    onChange={(ids) => setCiriloInput(ids.join(', '))}
+                    title="Invite Cirilo users"
+                    compact
                   />
-
-                  <small className="field-help">
-                    Separate several Cirilo IDs with commas.
-                  </small>
-                </label>
+                </div>
 
                 <label className="field span-2">
                   Invite by email

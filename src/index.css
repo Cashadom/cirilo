@@ -3068,3 +3068,19 @@ main{padding:18px 24px 36px}
     flex:1;
   }
 }
+
+/* CIRILO NOTES — collapsed card action cleanup */
+.compact-note-card:not(.is-expanded) .collapsed-item-actions{
+  display:none;
+}
+
+.compact-note-card:not(.is-expanded) .compact-body{
+  margin-bottom:2px;
+}
+
+.compact-note-card.is-expanded .note-item-actions{
+  display:flex;
+  align-items:center;
+  gap:3px;
+}
+
