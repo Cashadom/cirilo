@@ -491,84 +491,63 @@ export async function saveSharedNoteSnapshot(uid, inboxItem) {
           title: payload.noteTitle || 'Shared with me',
           universe: payload.universe || 'personal',
           visibility: 'private',
-          sharePolicy: inboxItem.sharePolicy || payload.sharePolicy || 'private',
+          sharePolicy: 'private',
           items: [normalizeItem(payload.item || {})],
         }
-      : cleanSnapshotNote(payload.note || {})
+      : {
+          ...cleanSnapshotNote(payload.note || {}),
+          visibility: 'private',
+          sharePolicy: 'private',
+        }
 
   await setDoc(ref, {
     ...snapshotNote,
-    id: undefined,
+
+    ownerUid: uid,
+    ownerCiriloId: '',
     localOwnerUid: uid,
 
-    ownerUid:
-      inboxItem.organizerUid ||
+    importedFromShareId: inboxItem.id || '',
+    importedFromThreadId: inboxItem.threadId || '',
+    importedFromSenderUid:
+      inboxItem.senderUid ||
+      inboxItem.sharedByUid ||
+      '',
+    importedFromSenderCiriloId:
+      inboxItem.senderCiriloId ||
+      inboxItem.sharedByCiriloId ||
+      inboxItem.sharedBy ||
+      '',
+    importedFromOriginalSenderUid:
       inboxItem.originalSenderUid ||
       inboxItem.senderUid ||
       inboxItem.sharedByUid ||
       '',
-    ownerCiriloId:
-      inboxItem.organizerCiriloId ||
+    importedFromOriginalSenderCiriloId:
       inboxItem.originalSenderCiriloId ||
       inboxItem.senderCiriloId ||
       inboxItem.sharedByCiriloId ||
       inboxItem.sharedBy ||
       '',
 
-    senderUid:
-      inboxItem.senderUid ||
-      inboxItem.sharedByUid ||
-      '',
-    senderCiriloId:
-      inboxItem.senderCiriloId ||
-      inboxItem.sharedByCiriloId ||
-      inboxItem.sharedBy ||
-      '',
-    senderName:
-      inboxItem.senderName ||
-      inboxItem.sharedByName ||
-      '',
-    senderPhotoURL:
-      inboxItem.senderPhotoURL ||
-      inboxItem.sharedByPhotoURL ||
-      inboxItem.event?.createdByPhotoURL ||
-      '',
+    isReceivedShared: false,
+    lockedForRecipient: false,
+    receivedSnapshot: false,
+    sourceShareId: '',
+    threadId: '',
 
-    originalSenderUid:
-      inboxItem.originalSenderUid ||
-      inboxItem.senderUid ||
-      inboxItem.sharedByUid ||
-      '',
-    originalSenderCiriloId:
-      inboxItem.originalSenderCiriloId ||
-      inboxItem.senderCiriloId ||
-      inboxItem.sharedByCiriloId ||
-      inboxItem.sharedBy ||
-      '',
-    forwardedByCiriloId: inboxItem.forwardedByCiriloId || '',
+    organizerUid: uid,
+    organizerCiriloId: '',
+    originalSenderUid: '',
+    originalSenderCiriloId: '',
+    senderUid: '',
+    senderCiriloId: '',
+    senderName: '',
+    senderPhotoURL: '',
+    forwardedByCiriloId: '',
 
-    organizerUid:
-      inboxItem.organizerUid ||
-      inboxItem.originalSenderUid ||
-      inboxItem.senderUid ||
-      inboxItem.sharedByUid ||
-      '',
-    organizerCiriloId:
-      inboxItem.organizerCiriloId ||
-      inboxItem.originalSenderCiriloId ||
-      inboxItem.senderCiriloId ||
-      inboxItem.sharedByCiriloId ||
-      inboxItem.sharedBy ||
-      '',
-
-    isReceivedShared: true,
-    lockedForRecipient: true,
-    receivedSnapshot: true,
-    sourceShareId: inboxItem.id || '',
-    threadId: inboxItem.threadId || '',
-    sharePolicy: inboxItem.sharePolicy || snapshotNote.sharePolicy || 'private',
-
-    closed: Boolean(inboxItem.closed),
+    closed: false,
+    archived: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })

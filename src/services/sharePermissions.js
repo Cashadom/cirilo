@@ -17,7 +17,18 @@ export function isClosedEntity(entity = {}) {
   )
 }
 
-export function isReceivedEntity(entity = {}) {
+export function isReceivedEntity(entity = {}, currentUid = '') {
+  // A copy explicitly saved into the current user's Notes is a local,
+  // independent document. Historical provenance must not lock it.
+  if (
+    currentUid &&
+    entity.localOwnerUid === currentUid &&
+    entity.ownerUid === currentUid &&
+    entity.lockedForRecipient !== true
+  ) {
+    return false
+  }
+
   return Boolean(
     entity.isReceivedShared ||
       entity.lockedForRecipient ||
@@ -35,7 +46,7 @@ export function getSharePolicy(entity = {}) {
 
 export function canEditOriginal(entity = {}, currentUid = '') {
   if (!currentUid || isClosedEntity(entity)) return false
-  if (isReceivedEntity(entity)) return false
+  if (isReceivedEntity(entity, currentUid)) return false
 
   return Boolean(
     !entity.ownerUid || entity.ownerUid === currentUid
@@ -49,7 +60,7 @@ export function canDeleteLocalCopy(entity = {}, currentUid = '') {
     return entity.localOwnerUid === currentUid
   }
 
-  if (entity.ownerUid && !isReceivedEntity(entity)) {
+  if (entity.ownerUid && !isReceivedEntity(entity, currentUid)) {
     return entity.ownerUid === currentUid
   }
 
