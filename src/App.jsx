@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useState} from 'react'
 import { addDays,addWeeks,format,subWeeks } from 'date-fns'
-import { Archive,BookOpenText,CalendarDays,ChevronLeft,ChevronRight,Compass,Inbox,ListTodo,LogOut,Plus,RotateCcw,UserRound,WalletCards } from 'lucide-react'
+import { Archive,BookOpenText,CalendarDays,ChevronLeft,ChevronRight,Compass,Inbox,ListTodo,LogOut,Plus,UserRound,WalletCards } from 'lucide-react'
 import AuthScreen from './components/AuthScreen'
 import InboxView from './components/InboxView'
 import SharedCardPage from './components/SharedCardPage'
@@ -34,7 +34,7 @@ import { acceptTambaInboxJob, archiveTambaJob, deleteTambaJob, deleteTambaTempla
 export default function App(){
   const {firebaseUser,profile:authProfile,loading:authLoading,logout,refreshProfile}=useAuth()
   const {events,addEvent,updateEvent,deleteEvent,resetDemo}=useCalendar()
-  const [anchor,setAnchor]=useState(new Date()),[activeCats,setActiveCats]=useState(new Set(Object.keys(CATEGORIES))),[modalOpen,setModalOpen]=useState(false),[draft,setDraft]=useState(null),[readOnly,setReadOnly]=useState(false),[view,setView]=useState(()=>new URLSearchParams(window.location.search).get('view')||'week'),[publicOpen,setPublicOpen]=useState(null),[shareOpen,setShareOpen]=useState(null),[publicProfileOpen,setPublicProfileOpen]=useState(false),[sharedToken,setSharedToken]=useState(()=>new URLSearchParams(window.location.search).get('share')),[noteShareOpen,setNoteShareOpen]=useState(null),[sharedNoteToken,setSharedNoteToken]=useState(()=>new URLSearchParams(window.location.search).get('sharedNote')),[focusNoteId,setFocusNoteId]=useState(''),[focusNoteItemId,setFocusNoteItemId]=useState(''),[noteRecipientPrefill,setNoteRecipientPrefill]=useState(''),[tambaJobs,setTambaJobs]=useState([]),[tambaTemplates,setTambaTemplates]=useState([]),[tambaJobOpen,setTambaJobOpen]=useState(false),[tambaJobDraft,setTambaJobDraft]=useState(null),[tambaTemplateOpen,setTambaTemplateOpen]=useState(false)
+  const [anchor,setAnchor]=useState(new Date()),[activeCats,setActiveCats]=useState(new Set(Object.keys(CATEGORIES))),[modalOpen,setModalOpen]=useState(false),[draft,setDraft]=useState(null),[readOnly,setReadOnly]=useState(false),[view,setView]=useState(()=>new URLSearchParams(window.location.search).get('view')||'week'),[publicOpen,setPublicOpen]=useState(null),[shareOpen,setShareOpen]=useState(null),[publicProfileOpen,setPublicProfileOpen]=useState(false),[sharedToken,setSharedToken]=useState(()=>new URLSearchParams(window.location.search).get('share')),[noteShareOpen,setNoteShareOpen]=useState(null),[sharedNoteToken,setSharedNoteToken]=useState(()=>new URLSearchParams(window.location.search).get('sharedNote')),[focusNoteId,setFocusNoteId]=useState(''),[focusNoteItemId,setFocusNoteItemId]=useState(''),[noteRecipientPrefill,setNoteRecipientPrefill]=useState(''),[tambaJobs,setTambaJobs]=useState([]),[tambaTemplates,setTambaTemplates]=useState([]),[tambaJobOpen,setTambaJobOpen]=useState(false),[tambaJobDraft,setTambaJobDraft]=useState(null),[tambaTemplateOpen,setTambaTemplateOpen]=useState(false),[pendingDiscoverEvents,setPendingDiscoverEvents]=useState([])
 
   const profile=useMemo(()=>({
     id:firebaseUser?.uid||'me',
@@ -274,52 +274,71 @@ export default function App(){
 
     const sourcePublicId=event.publicId||event.id||`discover-${String(event.title||'event').toLowerCase().replace(/[^a-z0-9]+/g,'-')}-${event.date||today}`
     const safeCategory=CATEGORIES[event.category]?event.category:'personal'
-    const safeDate=event.date||today
+    const requestedDate=event.date||today
+    const safeDate=requestedDate<today?today:requestedDate
+    const existing=events.find(item=>item.sourcePublicId===sourcePublicId)
+
+    const payload={
+      id:existing?.id||crypto.randomUUID(),
+      title:event.title||existing?.title||'Public event',
+      category:safeCategory,
+      type:'event',
+      date:safeDate,
+      startTime:event.startTime||existing?.startTime||'09:00',
+      endTime:event.endTime||existing?.endTime||'10:00',
+      location:event.location||existing?.location||'',
+      people:'',
+      notes:event.notes||event.description||existing?.notes||'',
+      reminder:event.reminder||existing?.reminder||'30 min before',
+      priority:'normal',
+      completed:false,
+      visibility:'private',
+      sharedBy:event.owner?.name||event.ownerName||event.host||existing?.sharedBy||'Cirilo',
+      sourcePublicId,
+      createdByUid:firebaseUser.uid,
+      createdByCiriloId:authProfile?.ciriloId||'',
+    }
+
+    // Show it in Week immediately, exactly like Cirilo does for operational items.
+    setPendingDiscoverEvents(current=>[
+      ...current.filter(item=>item.sourcePublicId!==sourcePublicId),
+      payload,
+    ])
+
+    setActiveCats(current=>{
+      const next=new Set(current)
+      next.add(safeCategory)
+      return next
+    })
+    setPublicOpen(null)
+    setAnchor(new Date(`${safeDate}T12:00:00`))
+    setView('week')
 
     try{
-      const existing=events.find(item=>item.sourcePublicId===sourcePublicId)
-
-      const payload={
-        id:existing?.id||crypto.randomUUID(),
-        title:event.title||existing?.title||'Public event',
-        category:safeCategory,
-        type:'event',
-        date:safeDate,
-        startTime:event.startTime||existing?.startTime||'09:00',
-        endTime:event.endTime||existing?.endTime||'10:00',
-        location:event.location||existing?.location||'',
-        people:'',
-        notes:event.notes||event.description||existing?.notes||'',
-        reminder:event.reminder||existing?.reminder||'30 min before',
-        priority:'normal',
-        completed:false,
-        visibility:'private',
-        sharedBy:event.owner?.name||event.ownerName||event.host||existing?.sharedBy||'Cirilo',
-        sourcePublicId,
-        createdByUid:firebaseUser.uid,
-        createdByCiriloId:authProfile?.ciriloId||'',
-      }
-
       if(existing){
         await updateEvent(payload)
       }else{
         await addEvent(payload)
       }
-
-      setActiveCats(current=>{
-        const next=new Set(current)
-        next.add(safeCategory)
-        return next
-      })
-
-      setPublicOpen(null)
-      setAnchor(new Date(`${safeDate}T12:00:00`))
-      setView('week')
     }catch(error){
+      setPendingDiscoverEvents(current=>current.filter(item=>item.sourcePublicId!==sourcePublicId))
       console.error('Could not add Discover event to Week:',error)
       window.alert(`Could not add this event to your Week: ${error?.message||'Unknown error'}`)
     }
   }
+
+  // Once Firestore returns the Discover event, remove the temporary optimistic copy.
+  useEffect(()=>{
+    if(!pendingDiscoverEvents.length)return
+    setPendingDiscoverEvents(current=>
+      current.filter(pending=>
+        !events.some(saved=>
+          saved.id===pending.id ||
+          (pending.sourcePublicId&&saved.sourcePublicId===pending.sourcePublicId)
+        )
+      )
+    )
+  },[events,pendingDiscoverEvents.length])
 
   const talentToWeek=(talent)=>{
     const fullName=[talent?.firstName,talent?.lastName]
@@ -377,6 +396,7 @@ export default function App(){
     setView('notes')
   }
 
+
   useEffect(()=>{const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();document.querySelector('.quick-add input')?.focus()}};addEventListener('keydown',h);return()=>removeEventListener('keydown',h)},[])
   const toggleCategory=key=>setActiveCats(prev=>{const next=new Set(prev);next.has(key)?next.delete(key):next.add(key);return next})
   const resize=(id,delta)=>{const event=events.find(e=>e.id===id);if(!event)return;const end=minutesFromTime(event.endTime)+delta;updateEvent({id,endTime:`${String(Math.floor(end/60)).padStart(2,'0')}:${String(end%60).padStart(2,'0')}`})}
@@ -412,7 +432,7 @@ export default function App(){
       sharedBy:job.createdByCiriloId||'',
       lockedForRecipient:Boolean(job.sourceOwnerUid&&job.sourceOwnerUid!==firebaseUser?.uid),
     })),[activeTambaJobs,today,firebaseUser?.uid])
-  const weekDisplayEvents=useMemo(()=>[...liveEvents,...tambaCalendarEvents],[liveEvents,tambaCalendarEvents])
+  const weekDisplayEvents=useMemo(()=>{const savedIds=new Set(liveEvents.map(event=>event.id));const savedPublicIds=new Set(liveEvents.map(event=>event.sourcePublicId).filter(Boolean));const pending=pendingDiscoverEvents.filter(event=>!savedIds.has(event.id)&&!(event.sourcePublicId&&savedPublicIds.has(event.sourcePublicId)));return [...liveEvents,...pending,...tambaCalendarEvents]},[liveEvents,pendingDiscoverEvents,tambaCalendarEvents])
 
   if(authLoading)return <div className="app-loading"><img src="/logo.png" alt="Cirilo"/><span>Loading your week…</span></div>
 
@@ -461,7 +481,7 @@ export default function App(){
 
   if(publicProfileOpen)return <div className="app"><SeoMeta {...seo}/><PublicProfilePage profile={profile} events={myPublicEvents} onBack={()=>setPublicProfileOpen(false)} onAdd={addPublicToWeek} onOpen={setPublicOpen}/><PublicEventPage event={publicOpen} onClose={()=>setPublicOpen(null)} onAdd={addPublicToWeek}/></div>
 
-  return <div className="app"><SeoMeta {...seo}/><header className="topbar"><div className="brand"><img src="/logo.png" alt="Cirilo"/></div><nav className="main-tabs" aria-label="Main navigation"><button className={view==='week'?'active':''} onClick={()=>setView('week')}><CalendarDays size={15}/> Week</button><button className={view==='discover'?'active':''} onClick={()=>setView('discover')}><Compass size={15}/> Discover</button><button className={view==='tasks'?'active':''} onClick={()=>setView('tasks')}><ListTodo size={15}/> Tasks</button><button className={view==='notes'?'active':''} onClick={()=>setView('notes')}><BookOpenText size={15}/> Notes</button><button className={view==='inbox'?'active':''} onClick={()=>setView('inbox')}><Inbox size={15}/> Inbox</button><button className={view==='archive'?'active':''} onClick={()=>setView('archive')}><Archive size={15}/> Archive</button><button className={view==='profile'?'active':''} onClick={()=>setView('profile')}><UserRound size={15}/> Profile</button><button className={view==='plans'?'active':''} onClick={()=>setView('plans')}><WalletCards size={15}/> Plans</button></nav><div className="top-actions"><button className="account-chip" onClick={()=>setView('profile')}>{profile.photoURL?<img src={profile.photoURL} alt=""/>:<span>{profile.name.charAt(0)}</span>}<small>{profile.ciriloId}</small></button><button className="secondary-btn compact" onClick={resetDemo}><RotateCcw size={15}/> Demo</button><button className="primary-btn" onClick={()=>openNew()}><Plus size={17}/> New item</button><button className="icon-btn" title="Sign out" onClick={logout}><LogOut size={16}/></button></div></header><main>{view==='week'&&<><section className="control-row"><div className="control-copy"><span className="eyebrow">Your week</span><span className="control-subtitle">Work, people and tasks in one calm view.</span></div><QuickAdd onAdd={openNew}/></section><section className="toolbar"><div className="week-nav"><button className="icon-btn" onClick={()=>setAnchor(subWeeks(anchor,1))}><ChevronLeft size={19}/></button><button className="today-btn" onClick={()=>setAnchor(new Date())}><CalendarDays size={16}/> Today</button><button className="icon-btn" onClick={()=>setAnchor(addWeeks(anchor,1))}><ChevronRight size={19}/></button><span className="week-range">{format(days[0],'MMM d')} — {format(days[6],'MMM d, yyyy')}</span></div><div className="category-filters">{Object.entries(CATEGORIES).map(([key,cat])=><button key={key} className={activeCats.has(key)?'active':''} onClick={()=>toggleCategory(key)}><i style={{background:cat.color}}/>{cat.label}</button>)}</div></section><section className="workspace"><div className="calendar-wrap"><WeekView days={days} events={weekDisplayEvents} activeCats={activeCats} onMove={(id,date)=>{if(date>=today)updateEvent({id,date})}} onOpen={openEdit} onCreate={openNew} onResize={resize} onShare={setShareOpen}/></div><WeekSummary events={weekEvents}/></section></>}{view==='discover'&&<DiscoverView events={[...myPublicEvents,...discoveryEvents]} onAdd={addPublicToWeek} onOpen={setPublicOpen}/>} {view==='archive'&&<ArchiveView events={archivedEvents} tambaJobs={archivedTambaJobs} onOpen={openArchive} onOpenTamba={openTambaJob}/>} {view==='profile'&&<ProfileView profile={profile} plan={plan} publicEvents={myPublicEvents} onSaved={refreshProfile} onOpenPublicProfile={()=>setPublicProfileOpen(true)} onPlans={()=>setView('plans')} onSendNote={sendNoteToContact} onProposeEvent={proposeEventToContact}/>} {view==='plans'&&<PlansView
+  return <div className="app"><SeoMeta {...seo}/><header className="topbar"><div className="brand" style={{display:'flex',alignItems:'center',gap:10}}><img src="/logo.png" alt="Cirilo"/><button type="button" onClick={resetDemo} title="Reset demo" style={{height:30,padding:'0 10px',border:'1px solid #e6c900',borderRadius:9,background:'#ffe600',color:'#111',display:'inline-flex',alignItems:'center',gap:6,fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 7px rgba(0,0,0,.08)'}}><img src="/demo.png" alt="" style={{width:16,height:16,objectFit:'contain'}}/><span>Demo</span></button></div><nav className="main-tabs" aria-label="Main navigation"><button className={view==='week'?'active':''} onClick={()=>setView('week')}><CalendarDays size={15}/> Week</button><button className={view==='discover'?'active':''} onClick={()=>setView('discover')}><Compass size={15}/> Discover</button><button className={view==='tasks'?'active':''} onClick={()=>setView('tasks')}><ListTodo size={15}/> Tasks</button><button className={view==='notes'?'active':''} onClick={()=>setView('notes')}><BookOpenText size={15}/> Notes</button><button className={view==='inbox'?'active':''} onClick={()=>setView('inbox')}><Inbox size={15}/> Inbox</button><button className={view==='archive'?'active':''} onClick={()=>setView('archive')}><Archive size={15}/> Archive</button><button className={view==='profile'?'active':''} onClick={()=>setView('profile')}><UserRound size={15}/> Profile</button><button className={view==='plans'?'active':''} onClick={()=>setView('plans')}><WalletCards size={15}/> Plans</button></nav><div className="top-actions"><button className="account-chip" onClick={()=>setView('profile')}>{profile.photoURL?<img src={profile.photoURL} alt=""/>:<span>{profile.name.charAt(0)}</span>}<small>{profile.ciriloId}</small></button><button className="primary-btn" onClick={()=>openNew()}><Plus size={17}/> New item</button><button className="icon-btn" title="Sign out" onClick={logout}><LogOut size={16}/></button></div></header><main>{view==='week'&&<><section className="control-row"><div className="control-copy"><span className="eyebrow">Your week</span><span className="control-subtitle">Work, people and tasks in one calm view.</span></div><QuickAdd onAdd={openNew}/></section><section className="toolbar"><div className="week-nav"><button className="icon-btn" onClick={()=>setAnchor(subWeeks(anchor,1))}><ChevronLeft size={19}/></button><button className="today-btn" onClick={()=>setAnchor(new Date())}><CalendarDays size={16}/> Today</button><button className="icon-btn" onClick={()=>setAnchor(addWeeks(anchor,1))}><ChevronRight size={19}/></button><span className="week-range">{format(days[0],'MMM d')} — {format(days[6],'MMM d, yyyy')}</span></div><div className="category-filters">{Object.entries(CATEGORIES).map(([key,cat])=><button key={key} className={activeCats.has(key)?'active':''} onClick={()=>toggleCategory(key)}><i style={{background:cat.color}}/>{cat.label}</button>)}</div></section><section className="workspace"><div className="calendar-wrap"><WeekView days={days} events={weekDisplayEvents} activeCats={activeCats} onMove={(id,date)=>{if(date>=today)updateEvent({id,date})}} onOpen={openEdit} onCreate={openNew} onResize={resize} onShare={setShareOpen}/></div><WeekSummary events={weekEvents}/></section></>}{view==='discover'&&<DiscoverView events={[...myPublicEvents,...discoveryEvents]} onAdd={addPublicToWeek} onOpen={setPublicOpen}/>} {view==='archive'&&<ArchiveView events={archivedEvents} tambaJobs={archivedTambaJobs} onOpen={openArchive} onOpenTamba={openTambaJob}/>} {view==='profile'&&<ProfileView profile={profile} plan={plan} publicEvents={myPublicEvents} onSaved={refreshProfile} onOpenPublicProfile={()=>setPublicProfileOpen(true)} onPlans={()=>setView('plans')} onSendNote={sendNoteToContact} onProposeEvent={proposeEventToContact}/>} {view==='plans'&&<PlansView
   plan={plan}
   onChoose={async choice=>{
     if(choice==='pro'){
