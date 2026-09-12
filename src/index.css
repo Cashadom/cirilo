@@ -3389,3 +3389,76 @@ main{padding:26px 30px 48px}
     display: none !important;
   }
 }
+
+
+/* =========================================================
+   CIRILO V10.5 — DEMO TEXT BADGE BESIDE LOGO
+   No PNG dependency.
+   ========================================================= */
+.brand.brand-with-demo{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:flex-start !important;
+  gap:8px !important;
+  width:auto !important;
+  min-width:0;
+}
+
+.brand.brand-with-demo > img{
+  display:block;
+  height:40px;
+  width:auto;
+  max-width:none;
+  flex:0 0 auto;
+}
+
+.demo-text-badge{
+  appearance:none;
+  -webkit-appearance:none;
+  border:2px solid #ffd900 !important;
+  background:transparent !important;
+  color:#111 !important;
+  border-radius:8px;
+  padding:4px 8px !important;
+  margin:0 !important;
+  min-width:auto !important;
+  width:auto !important;
+  height:auto !important;
+  line-height:1 !important;
+  font-size:12px !important;
+  font-weight:700 !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  flex:0 0 auto !important;
+  box-shadow:none !important;
+}
+
+.demo-text-badge:hover{
+  background:#fffdf2 !important;
+}
+
+@media(max-width:680px){
+  .brand.brand-with-demo{
+    width:100% !important;
+    gap:7px !important;
+  }
+
+  .brand.brand-with-demo > img{
+    height:40px !important;
+    width:auto !important;
+    max-width:190px !important;
+  }
+
+  .demo-text-badge{
+    font-size:11px !important;
+    padding:4px 7px !important;
+  }
+}
+
+@media(max-width:430px){
+  .brand.brand-with-demo > img{
+    height:38px !important;
+    max-width:176px !important;
+  }
+}
