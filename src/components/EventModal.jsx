@@ -3,6 +3,7 @@ import React, {
   useMemo,
   useState,
 } from 'react'
+
 import {
   Crown,
   Lock,
@@ -12,22 +13,41 @@ import {
   UserRound,
   X,
 } from 'lucide-react'
+
 import {
   doc,
   getDoc,
 } from 'firebase/firestore'
-import { db } from '../firebase'
-import { CATEGORIES } from '../utils/calendar'
-import SharePicker from './SharePicker'
+
 import {
-  parseCiriloRecipients,
+  db,
+} from '../firebase'
+
+import {
+  CATEGORIES,
+} from '../utils/calendar'
+
+import {
+  getProfileTypeMeta,
+  normalizeProfileType,
+} from '../utils/profileType'
+
+import SharePicker from './SharePicker'
+
+import {
   parseEmailRecipients,
   validateCiriloRecipients,
   validateEmailRecipients,
 } from '../services/shareService'
 
-const todayKey = () =>
-  new Date().toISOString().slice(0, 10)
+const todayKey =
+  () =>
+    new Date()
+      .toISOString()
+      .slice(
+        0,
+        10
+      )
 
 const empty = {
   title: '',
@@ -43,8 +63,80 @@ const empty = {
   priority: 'normal',
   completed: false,
   visibility: 'private',
+  municipalCategory: 'local_life',
+  publicUrl: '',
+  publicContact: '',
   invitedCiriloIds: [],
   invitedEmails: [],
+}
+
+const MUNICIPAL_CATEGORIES = [
+  [
+    'culture',
+    'Culture',
+  ],
+
+  [
+    'sports',
+    'Sports',
+  ],
+
+  [
+    'works_traffic',
+    'Works & Traffic',
+  ],
+
+  [
+    'environment',
+    'Environment',
+  ],
+
+  [
+    'civic_municipal',
+    'Civic & Municipal',
+  ],
+
+  [
+    'education',
+    'Education',
+  ],
+
+  [
+    'social_health',
+    'Social & Health',
+  ],
+
+  [
+    'local_life',
+    'Local life',
+  ],
+
+  [
+    'other',
+    'Other',
+  ],
+]
+
+function cleanCiriloIds(
+  values = []
+) {
+  return [
+    ...new Set(
+      values
+        .map(
+          value =>
+            String(
+              value ||
+              ''
+            )
+              .trim()
+              .toLowerCase()
+        )
+        .filter(
+          Boolean
+        )
+    ),
+  ]
 }
 
 export default function EventModal({
@@ -54,88 +146,179 @@ export default function EventModal({
   onSave,
   onDelete,
   readOnly = false,
+  profileType = 'personal',
+  organizationType = '',
+  municipalityVerificationStatus = 'unverified',
   canPublishPublic = false,
   onUpgrade,
 }) {
-  const [form, setForm] =
-    useState(empty)
+  const [
+    form,
+    setForm,
+  ] =
+    useState(
+      empty
+    )
 
-  const [ciriloInput, setCiriloInput] =
-    useState('')
+  const [
+    emailInput,
+    setEmailInput,
+  ] =
+    useState(
+      ''
+    )
 
-  const [emailInput, setEmailInput] =
-    useState('')
+  const [
+    error,
+    setError,
+  ] =
+    useState(
+      ''
+    )
 
-  const [error, setError] =
-    useState('')
-
-  const [creatorProfile, setCreatorProfile] =
+  const [
+    creatorProfile,
+    setCreatorProfile,
+  ] =
     useState({
-      displayName: '',
-      photoURL: '',
-    })
-
-  useEffect(() => {
-    if (!open) return
-
-    const next = {
-      ...empty,
-      ...draft,
-
-      invitedCiriloIds:
-        draft?.invitedCiriloIds || [],
-
-      invitedEmails:
-        draft?.invitedEmails || [],
-    }
-
-    setForm(next)
-
-    setCiriloInput(
-      (next.invitedCiriloIds || []).join(', ')
-    )
-
-    setEmailInput(
-      (next.invitedEmails || []).join(', ')
-    )
-
-    setCreatorProfile({
       displayName:
-        next.createdByName ||
-        next.sharedByName ||
         '',
 
       photoURL:
-        next.createdByPhotoURL ||
-        next.sharedByPhotoURL ||
         '',
     })
 
-    setError('')
-  }, [open, draft])
-
-  const isPast = useMemo(
-    () =>
-      form.date &&
-      form.date < todayKey(),
-    [form.date]
-  )
-
-  // Only explicit share/recipient markers make an event "received".
-  // createdByCiriloId is also present on the owner's own events.
-  const isReceivedSharedEvent = Boolean(
-    form.isSharedEvent ||
-    form.lockedForRecipient ||
-    form.sourceShareId ||
-    form.sharedByCiriloId ||
-    (
-      form.sharedBy &&
-      /^cirilo_\d{6}$/i.test(form.sharedBy)
+  const normalizedProfileType =
+    normalizeProfileType(
+      profileType
     )
+
+  const profileTypeMeta =
+    getProfileTypeMeta(
+      normalizedProfileType
+    )
+
+  const isMunicipality =
+    normalizedProfileType ===
+      'public' &&
+    organizationType ===
+      'municipality'
+
+  const municipalityVerified =
+    municipalityVerificationStatus ===
+    'verified'
+
+  useEffect(
+    () => {
+      if (
+        !open
+      ) {
+        return
+      }
+
+      const next = {
+        ...empty,
+        ...draft,
+
+        ...(
+          isMunicipality
+            ? {
+                type:
+                  'event',
+
+                category:
+                  draft?.category ||
+                  'personal',
+
+                municipalCategory:
+                  draft
+                    ?.municipalCategory ||
+                  'local_life',
+
+                priority:
+                  'normal',
+              }
+            : {}
+        ),
+
+        invitedCiriloIds:
+          cleanCiriloIds(
+            draft
+              ?.invitedCiriloIds ||
+            []
+          ),
+
+        invitedEmails:
+          draft
+            ?.invitedEmails ||
+          [],
+      }
+
+      setForm(
+        next
+      )
+
+      setEmailInput(
+        (
+          next.invitedEmails ||
+          []
+        ).join(
+          ', '
+        )
+      )
+
+      setCreatorProfile({
+        displayName:
+          next.createdByName ||
+          next.sharedByName ||
+          '',
+
+        photoURL:
+          next.createdByPhotoURL ||
+          next.sharedByPhotoURL ||
+          '',
+      })
+
+      setError(
+        ''
+      )
+    },
+    [
+      open,
+      draft,
+      isMunicipality,
+    ]
   )
+
+  const isPast =
+    useMemo(
+      () =>
+        form.date &&
+        form.date <
+          todayKey(),
+
+      [
+        form.date,
+      ]
+    )
+
+  const isReceivedSharedEvent =
+    Boolean(
+      form.isSharedEvent ||
+      form.lockedForRecipient ||
+      form.sourceShareId ||
+      form.sharedByCiriloId ||
+      (
+        form.sharedBy &&
+        /^cirilo_\d{6}$/i.test(
+          form.sharedBy
+        )
+      )
+    )
 
   const locked =
-    readOnly || isReceivedSharedEvent
+    readOnly ||
+    isReceivedSharedEvent
 
   const sharedOriginId =
     isReceivedSharedEvent
@@ -144,7 +327,8 @@ export default function EventModal({
           form.createdByCiriloId ||
           (
             /^cirilo_\d{6}$/i.test(
-              form.sharedBy || ''
+              form.sharedBy ||
+              ''
             )
               ? form.sharedBy
               : ''
@@ -152,182 +336,286 @@ export default function EventModal({
         )
       : ''
 
-  useEffect(() => {
-    if (
-      !open ||
-      !isReceivedSharedEvent ||
-      !sharedOriginId
-    ) {
-      return
-    }
-
-    let cancelled = false
-
-    async function loadCreator() {
-      try {
-        const snapshot = await getDoc(
-          doc(
-            db,
-            'publicUsers',
-            sharedOriginId
-          )
-        )
-
-        if (
-          cancelled ||
-          !snapshot.exists()
-        ) {
-          return
-        }
-
-        const data = snapshot.data()
-
-        setCreatorProfile((current) => ({
-          displayName:
-            data.displayName ||
-            current.displayName ||
-            '',
-
-          photoURL:
-            data.photoURL ||
-            current.photoURL ||
-            '',
-        }))
-      } catch (err) {
-        console.error(
-          'Could not load creator profile:',
-          err
-        )
+  useEffect(
+    () => {
+      if (
+        !open ||
+        !isReceivedSharedEvent ||
+        !sharedOriginId
+      ) {
+        return
       }
-    }
 
-    loadCreator()
+      let cancelled =
+        false
 
-    return () => {
-      cancelled = true
-    }
-  }, [
-    open,
-    isReceivedSharedEvent,
-    sharedOriginId,
-  ])
+      async function loadCreator() {
+        try {
+          const snapshot =
+            await getDoc(
+              doc(
+                db,
+                'publicUsers',
+                sharedOriginId
+              )
+            )
 
-  const participantIds = [
-    ...(form.invitedCiriloIds || []),
-  ].filter(
-    (id, index, array) =>
-      id &&
-      array.indexOf(id) === index
+          if (
+            cancelled ||
+            !snapshot.exists()
+          ) {
+            return
+          }
+
+          const data =
+            snapshot.data()
+
+          setCreatorProfile(
+            current => ({
+              displayName:
+                data.displayName ||
+                current.displayName ||
+                '',
+
+              photoURL:
+                data.photoURL ||
+                current.photoURL ||
+                '',
+            })
+          )
+        } catch (
+          err
+        ) {
+          console.error(
+            'Could not load creator profile:',
+            err
+          )
+        }
+      }
+
+      loadCreator()
+
+      return () => {
+        cancelled =
+          true
+      }
+    },
+    [
+      open,
+      isReceivedSharedEvent,
+      sharedOriginId,
+    ]
   )
 
+  const participantIds =
+    cleanCiriloIds(
+      form.invitedCiriloIds ||
+      []
+    )
+
   const visibleParticipants =
-    participantIds.slice(0, 4)
+    participantIds.slice(
+      0,
+      4
+    )
 
   const hiddenParticipantsCount =
     Math.max(
       0,
+
       participantIds.length -
-        visibleParticipants.length
+      visibleParticipants.length
     )
 
-  const invitedCiriloIds =
-    parseCiriloRecipients(ciriloInput)
-
-  const invitedEmails =
-    parseEmailRecipients(emailInput)
-
-  if (!open) return null
-
-  const update = (key, value) => {
-    if (!locked) {
-      setForm((current) => ({
-        ...current,
-        [key]: value,
-      }))
-    }
+  if (
+    !open
+  ) {
+    return null
   }
 
-  const save = () => {
-    if (locked) return
+  const update =
+    (
+      key,
+      value
+    ) => {
+      if (
+        !locked
+      ) {
+        setForm(
+          current => ({
+            ...current,
 
-    if (
-      !form.title.trim() ||
-      !form.date
-    ) {
-      setError(
-        'Add a title and date.'
-      )
-      return
+            [key]:
+              value,
+          })
+        )
+      }
     }
 
-    if (!form.id && isPast) {
+  const save =
+    () => {
+      if (
+        locked
+      ) {
+        return
+      }
+
+      if (
+        !form.title.trim() ||
+        !form.date
+      ) {
+        setError(
+          'Add a title and date.'
+        )
+
+        return
+      }
+
+      if (
+        !form.id &&
+        isPast
+      ) {
+        setError(
+          'Cirilo does not allow creating new events in the past.'
+        )
+
+        return
+      }
+
+      if (
+        form.visibility ===
+          'public' &&
+        !canPublishPublic
+      ) {
+        setError(
+          'Public publishing requires Cirilo Pro or Business.'
+        )
+
+        return
+      }
+
+      /*
+       * SINGLE SOURCE OF TRUTH:
+       *
+       * SharePicker writes directly here.
+       */
+      const invitedCiriloIds =
+        cleanCiriloIds(
+          form.invitedCiriloIds ||
+          []
+        )
+
+      const invitedEmails =
+        parseEmailRecipients(
+          emailInput
+        )
+
+      if (
+        form.visibility ===
+          'shared' &&
+        invitedCiriloIds.length ===
+          0 &&
+        invitedEmails.length ===
+          0
+      ) {
+        setError(
+          'Add at least one Cirilo ID or email address.'
+        )
+
+        return
+      }
+
+      if (
+        !validateCiriloRecipients(
+          invitedCiriloIds
+        )
+      ) {
+        setError(
+          'One or more Cirilo IDs are invalid.'
+        )
+
+        return
+      }
+
+      if (
+        !validateEmailRecipients(
+          invitedEmails
+        )
+      ) {
+        setError(
+          'One or more email addresses are invalid.'
+        )
+
+        return
+      }
+
       setError(
-        'Cirilo does not allow creating new events in the past.'
+        ''
       )
-      return
+
+      onSave({
+        ...form,
+
+        visibility:
+          form.type ===
+          'task'
+            ? 'private'
+            : form.visibility,
+
+        invitedCiriloIds:
+          form.type ===
+          'task'
+            ? []
+            : invitedCiriloIds,
+
+        invitedEmails:
+          form.type ===
+          'task'
+            ? []
+            : invitedEmails,
+
+        municipalEvent:
+          isMunicipality,
+
+        municipalCategory:
+          isMunicipality
+            ? form.municipalCategory ||
+              'local_life'
+            : form.municipalCategory ||
+              '',
+
+        priority:
+          isMunicipality
+            ? 'normal'
+            : form.priority,
+
+        reminder:
+          isMunicipality
+            ? 'At time'
+            : form.reminder,
+
+        title:
+          form.title.trim(),
+
+        id:
+          form.id ||
+          crypto.randomUUID(),
+      })
     }
-
-    if (
-      form.visibility === 'public' &&
-      !canPublishPublic
-    ) {
-      setError(
-        'Public publishing requires Cirilo Pro or Business.'
-      )
-      return
-    }
-
-    if (
-      form.visibility === 'shared' &&
-      !invitedCiriloIds.length &&
-      !invitedEmails.length
-    ) {
-      setError(
-        'Add at least one Cirilo ID or email address.'
-      )
-      return
-    }
-
-    if (
-      !validateCiriloRecipients(
-        invitedCiriloIds
-      )
-    ) {
-      setError(
-        'One or more Cirilo IDs are invalid.'
-      )
-      return
-    }
-
-    if (
-      !validateEmailRecipients(
-        invitedEmails
-      )
-    ) {
-      setError(
-        'One or more email addresses are invalid.'
-      )
-      return
-    }
-
-    onSave({
-      ...form,
-
-      title:
-        form.title.trim(),
-
-      id:
-        form.id ||
-        crypto.randomUUID(),
-
-      invitedCiriloIds,
-      invitedEmails,
-    })
-  }
 
   const hasInvites =
-    (form.invitedCiriloIds || []).length > 0 ||
-    (form.invitedEmails || []).length > 0
+    (
+      form
+        .invitedCiriloIds ||
+      []
+    ).length >
+      0 ||
+    (
+      form
+        .invitedEmails ||
+      []
+    ).length >
+      0
 
   const creatorInitial =
     (
@@ -335,18 +623,24 @@ export default function EventModal({
       'Cirilo'
     )
       .trim()
-      .charAt(0)
-      .toUpperCase() || 'C'
+      .charAt(
+        0
+      )
+      .toUpperCase() ||
+    'C'
 
   return (
     <div
       className="modal-backdrop"
-      onMouseDown={onClose}
+      onMouseDown={
+        onClose
+      }
     >
       <div
         className="modal-card"
-        onMouseDown={(event) =>
-          event.stopPropagation()
+        onMouseDown={
+          event =>
+            event.stopPropagation()
         }
       >
         <header>
@@ -374,9 +668,15 @@ export default function EventModal({
 
           <button
             className="icon-btn"
-            onClick={onClose}
+            onClick={
+              onClose
+            }
           >
-            <X size={20} />
+            <X
+              size={
+                20
+              }
+            />
           </button>
         </header>
 
@@ -390,11 +690,16 @@ export default function EventModal({
         {!isReceivedSharedEvent &&
           form.sourceNoteId && (
             <div className="archive-readonly-note">
-              <strong>From Notes</strong>
+              <strong>
+                From Notes
+              </strong>
+
               {form.sourceNoteTitle
                 ? ` · ${form.sourceNoteTitle}`
                 : ''}
+
               <br />
+
               <small>
                 This is your event. You can edit it normally; the original Note stays linked.
               </small>
@@ -415,14 +720,20 @@ export default function EventModal({
                   />
                 ) : (
                   <span>
-                    {creatorInitial}
+                    {
+                      creatorInitial
+                    }
                   </span>
                 )}
               </span>
 
               <div>
                 <div className="shared-event-origin-line">
-                  <Lock size={12} />
+                  <Lock
+                    size={
+                      12
+                    }
+                  />
 
                   Shared with you by{' '}
                   {sharedOriginId
@@ -445,9 +756,14 @@ export default function EventModal({
 
                 <div>
                   {visibleParticipants.map(
-                    (id) => (
-                      <small key={id}>
-                        @{id}
+                    id => (
+                      <small
+                        key={
+                          id
+                        }
+                      >
+                        @
+                        {id}
                       </small>
                     )
                   )}
@@ -478,28 +794,49 @@ export default function EventModal({
                 {(
                   form.invitedCiriloIds ||
                   []
-                ).map((id) => (
-                  <span
-                    className="invite-chip"
-                    key={id}
-                  >
-                    <UserRound size={12} />
-                    @{id}
-                  </span>
-                ))}
+                ).map(
+                  id => (
+                    <span
+                      className="invite-chip"
+                      key={
+                        id
+                      }
+                    >
+                      <UserRound
+                        size={
+                          12
+                        }
+                      />
+
+                      @
+                      {id}
+                    </span>
+                  )
+                )}
 
                 {(
                   form.invitedEmails ||
                   []
-                ).map((email) => (
-                  <span
-                    className="invite-chip"
-                    key={email}
-                  >
-                    <Mail size={12} />
-                    {email}
-                  </span>
-                ))}
+                ).map(
+                  email => (
+                    <span
+                      className="invite-chip"
+                      key={
+                        email
+                      }
+                    >
+                      <Mail
+                        size={
+                          12
+                        }
+                      />
+
+                      {
+                        email
+                      }
+                    </span>
+                  )
+                )}
               </div>
             </div>
           )}
@@ -509,85 +846,200 @@ export default function EventModal({
             Title
 
             <input
-              disabled={locked}
-              autoFocus={!locked}
-              value={form.title}
-              onChange={(event) =>
-                update(
-                  'title',
-                  event.target.value
-                )
+              disabled={
+                locked
+              }
+              autoFocus={
+                !locked
+              }
+              value={
+                form.title
+              }
+              onChange={
+                event =>
+                  update(
+                    'title',
+                    event.target.value
+                  )
               }
               placeholder="What is happening?"
             />
           </label>
 
-          <label className="field">
-            Category
+          {isMunicipality ? (
+            <label className="field">
+              Municipal category
 
-            <select
-              disabled={locked}
-              value={form.category}
-              onChange={(event) =>
-                update(
-                  'category',
-                  event.target.value
-                )
-              }
-            >
-              {Object.entries(CATEGORIES).map(
-                ([key, category]) => (
-                  <option
-                    key={key}
-                    value={key}
-                  >
-                    {category.label}
+              <select
+                disabled={
+                  locked
+                }
+                value={
+                  form.municipalCategory ||
+                  'local_life'
+                }
+                onChange={
+                  event =>
+                    update(
+                      'municipalCategory',
+                      event.target.value
+                    )
+                }
+              >
+                {MUNICIPAL_CATEGORIES.map(
+                  ([
+                    value,
+                    label,
+                  ]) => (
+                    <option
+                      key={
+                        value
+                      }
+                      value={
+                        value
+                      }
+                    >
+                      {
+                        label
+                      }
+                    </option>
+                  )
+                )}
+              </select>
+            </label>
+          ) : (
+            <>
+              <label className="field">
+                Category
+
+                <select
+                  disabled={
+                    locked
+                  }
+                  value={
+                    form.category
+                  }
+                  onChange={
+                    event =>
+                      update(
+                        'category',
+                        event.target.value
+                      )
+                  }
+                >
+                  {Object.entries(
+                    CATEGORIES
+                  ).map(
+                    ([
+                      key,
+                      category,
+                    ]) => (
+                      <option
+                        key={
+                          key
+                        }
+                        value={
+                          key
+                        }
+                      >
+                        {
+                          category.label
+                        }
+                      </option>
+                    )
+                  )}
+                </select>
+              </label>
+
+              <label className="field">
+                Type
+
+                <select
+                  disabled={
+                    locked
+                  }
+                  value={
+                    form.type
+                  }
+                  onChange={
+                    event => {
+                      const nextType =
+                        event.target.value
+
+                      if (
+                        nextType ===
+                        'task'
+                      ) {
+                        setForm(
+                          current => ({
+                            ...current,
+
+                            type:
+                              nextType,
+
+                            visibility:
+                              'private',
+
+                            invitedCiriloIds:
+                              [],
+
+                            invitedEmails:
+                              [],
+                          })
+                        )
+
+                        setEmailInput(
+                          ''
+                        )
+                      } else {
+                        update(
+                          'type',
+                          nextType
+                        )
+                      }
+                    }
+                  }
+                >
+                  <option value="event">
+                    Event
                   </option>
-                )
-              )}
-            </select>
-          </label>
 
-          <label className="field">
-            Type
-
-            <select
-              disabled={locked}
-              value={form.type}
-              onChange={(event) =>
-                update(
-                  'type',
-                  event.target.value
-                )
-              }
-            >
-              <option value="event">
-                Event
-              </option>
-
-              <option value="task">
-                Task
-              </option>
-            </select>
-          </label>
+                  <option value="task">
+                    Task
+                  </option>
+                </select>
+              </label>
+            </>
+          )}
 
           <label className="field">
             Visibility
 
             <select
-              disabled={locked}
-              value={
-                form.visibility ||
-                'private'
+              disabled={
+                locked ||
+                form.type ===
+                  'task'
               }
-              onChange={(event) => {
-                update(
-                  'visibility',
-                  event.target.value
-                )
+              value={
+                form.type ===
+                'task'
+                  ? 'private'
+                  : form.visibility ||
+                    'private'
+              }
+              onChange={
+                event => {
+                  update(
+                    'visibility',
+                    event.target.value
+                  )
 
-                setError('')
-              }}
+                  setError(
+                    ''
+                  )
+                }
+              }
             >
               <option value="private">
                 Private
@@ -601,71 +1053,107 @@ export default function EventModal({
                 Public{' '}
                 {canPublishPublic
                   ? ''
-                  : '· Pro'}
+                  : isMunicipality
+                    ? '· Verification required'
+                    : '· Pro'}
               </option>
             </select>
+
+            <small className="field-help">
+              {form.type ===
+              'task'
+                ? 'Tasks always stay private.'
+                : isMunicipality
+                  ? municipalityVerified
+                    ? 'Verified municipality: Public is available without a paid plan.'
+                    : 'Municipality events can be prepared privately. Public publishing unlocks after Cirilo verification.'
+                  : normalizedProfileType ===
+                    'public'
+                    ? 'Public profiles default new calendar events to Public. You can still choose Private or Shared.'
+                    : normalizedProfileType ===
+                      'company'
+                      ? 'Company profiles default new calendar events to Shared. You can switch each event to Private or Public.'
+                      : `Personal profiles default new calendar events to ${profileTypeMeta.defaultEventVisibility}.`}
+            </small>
           </label>
 
           <label className="field">
             Date
 
             <input
-              disabled={locked}
+              disabled={
+                locked
+              }
               type="date"
               min={
                 form.id
                   ? undefined
                   : todayKey()
               }
-              value={form.date}
-              onChange={(event) =>
-                update(
-                  'date',
-                  event.target.value
-                )
+              value={
+                form.date
+              }
+              onChange={
+                event =>
+                  update(
+                    'date',
+                    event.target.value
+                  )
               }
             />
           </label>
 
-          <label className="field">
-            Priority
+          {!isMunicipality ? (
+            <label className="field">
+              Priority
 
-            <select
-              disabled={locked}
-              value={form.priority}
-              onChange={(event) =>
-                update(
-                  'priority',
-                  event.target.value
-                )
-              }
-            >
-              <option value="normal">
-                Normal
-              </option>
+              <select
+                disabled={
+                  locked
+                }
+                value={
+                  form.priority
+                }
+                onChange={
+                  event =>
+                    update(
+                      'priority',
+                      event.target.value
+                    )
+                }
+              >
+                <option value="normal">
+                  Normal
+                </option>
 
-              <option value="high">
-                High
-              </option>
+                <option value="high">
+                  High
+                </option>
 
-              <option value="low">
-                Low
-              </option>
-            </select>
-          </label>
+                <option value="low">
+                  Low
+                </option>
+              </select>
+            </label>
+          ) : null}
 
           <label className="field">
             Starts
 
             <input
-              disabled={locked}
+              disabled={
+                locked
+              }
               type="time"
-              value={form.startTime}
-              onChange={(event) =>
-                update(
-                  'startTime',
-                  event.target.value
-                )
+              value={
+                form.startTime
+              }
+              onChange={
+                event =>
+                  update(
+                    'startTime',
+                    event.target.value
+                  )
               }
             />
           </label>
@@ -674,14 +1162,19 @@ export default function EventModal({
             Ends
 
             <input
-              disabled={locked}
+              disabled={
+                locked
+              }
               type="time"
-              value={form.endTime}
-              onChange={(event) =>
-                update(
-                  'endTime',
-                  event.target.value
-                )
+              value={
+                form.endTime
+              }
+              onChange={
+                event =>
+                  update(
+                    'endTime',
+                    event.target.value
+                  )
               }
             />
           </label>
@@ -690,42 +1183,82 @@ export default function EventModal({
             Location
 
             <input
-              disabled={locked}
-              value={form.location}
-              onChange={(event) =>
-                update(
-                  'location',
-                  event.target.value
-                )
+              disabled={
+                locked
+              }
+              value={
+                form.location
+              }
+              onChange={
+                event =>
+                  update(
+                    'location',
+                    event.target.value
+                  )
               }
               placeholder="Office, Zoom, Home..."
             />
           </label>
 
-          <label className="field">
-            People
+          {!isMunicipality ? (
+            <label className="field">
+              People
 
-            <input
-              disabled={locked}
-              value={form.people}
-              onChange={(event) =>
-                update(
-                  'people',
-                  event.target.value
-                )
-              }
-              placeholder="Names or group"
-            />
-          </label>
+              <input
+                disabled={
+                  locked
+                }
+                value={
+                  form.people
+                }
+                onChange={
+                  event =>
+                    update(
+                      'people',
+                      event.target.value
+                    )
+                }
+                placeholder="Names or group"
+              />
+            </label>
+          ) : null}
 
-          {form.visibility === 'shared' &&
+          {form.visibility ===
+            'shared' &&
             !locked && (
               <>
                 <div className="field span-2">
                   <SharePicker
-                    value={parseCiriloRecipients(ciriloInput)}
-                    onChange={(ids) => setCiriloInput(ids.join(', '))}
+                    /*
+                     * DIRECT BINDING.
+                     * No ciriloInput intermediary anymore.
+                     */
+                    value={
+                      form.invitedCiriloIds ||
+                      []
+                    }
+
+                    onChange={
+                      ids => {
+                        setForm(
+                          current => ({
+                            ...current,
+
+                            invitedCiriloIds:
+                              cleanCiriloIds(
+                                ids
+                              ),
+                          })
+                        )
+
+                        setError(
+                          ''
+                        )
+                      }
+                    }
+
                     title="Invite Cirilo users"
+
                     compact
                   />
                 </div>
@@ -735,11 +1268,14 @@ export default function EventModal({
 
                   <textarea
                     rows="2"
-                    value={emailInput}
-                    onChange={(event) =>
-                      setEmailInput(
-                        event.target.value
-                      )
+                    value={
+                      emailInput
+                    }
+                    onChange={
+                      event =>
+                        setEmailInput(
+                          event.target.value
+                        )
                     }
                     placeholder="leo@gmail.com, client@example.com"
                   />
@@ -751,86 +1287,173 @@ export default function EventModal({
               </>
             )}
 
+          {!isMunicipality ? (
+            <label className="field span-2">
+              Reminder
+
+              <select
+                disabled={
+                  locked
+                }
+                value={
+                  form.reminder
+                }
+                onChange={
+                  event =>
+                    update(
+                      'reminder',
+                      event.target.value
+                    )
+                }
+              >
+                <option>
+                  At time
+                </option>
+
+                <option>
+                  15 min before
+                </option>
+
+                <option>
+                  30 min before
+                </option>
+
+                <option>
+                  1 hour before
+                </option>
+
+                <option>
+                  1 day before
+                </option>
+              </select>
+            </label>
+          ) : null}
+
+          {isMunicipality ? (
+            <>
+              <label className="field">
+                Event URL
+
+                <input
+                  disabled={
+                    locked
+                  }
+                  type="url"
+                  value={
+                    form.publicUrl ||
+                    ''
+                  }
+                  onChange={
+                    event =>
+                      update(
+                        'publicUrl',
+                        event.target.value
+                      )
+                  }
+                  placeholder="https://www.mairie.fr/event"
+                />
+              </label>
+
+              <label className="field">
+                Public contact
+
+                <input
+                  disabled={
+                    locked
+                  }
+                  value={
+                    form.publicContact ||
+                    ''
+                  }
+                  onChange={
+                    event =>
+                      update(
+                        'publicContact',
+                        event.target.value
+                      )
+                  }
+                  placeholder="culture@mairie.fr · 04..."
+                />
+              </label>
+            </>
+          ) : null}
+
           <label className="field span-2">
-            Reminder
-
-            <select
-              disabled={locked}
-              value={form.reminder}
-              onChange={(event) =>
-                update(
-                  'reminder',
-                  event.target.value
-                )
-              }
-            >
-              <option>
-                At time
-              </option>
-
-              <option>
-                15 min before
-              </option>
-
-              <option>
-                30 min before
-              </option>
-
-              <option>
-                1 hour before
-              </option>
-
-              <option>
-                1 day before
-              </option>
-            </select>
-          </label>
-
-          <label className="field span-2">
-            Notes
+            {isMunicipality
+              ? 'Public description'
+              : 'Notes'}
 
             <textarea
-              disabled={locked}
-              rows="4"
-              value={form.notes}
-              onChange={(event) =>
-                update(
-                  'notes',
-                  event.target.value
-                )
+              disabled={
+                locked
               }
-              placeholder="Add context, links or preparation notes..."
+              rows="4"
+              value={
+                form.notes
+              }
+              onChange={
+                event =>
+                  update(
+                    'notes',
+                    event.target.value
+                  )
+              }
+              placeholder={
+                isMunicipality
+                  ? 'Describe the event for residents...'
+                  : 'Add context, links or preparation notes...'
+              }
             />
           </label>
         </div>
 
-        {form.visibility === 'public' &&
+        {form.visibility ===
+          'public' &&
           !canPublishPublic &&
           !locked && (
             <button
               className="upgrade-inline"
-              onClick={onUpgrade}
+              onClick={
+                onUpgrade
+              }
             >
-              <Crown size={15} />
-              Public events require a paid publishing plan · View plans
+              <Crown
+                size={
+                  15
+                }
+              />
+
+              {isMunicipality
+                ? 'Municipality verification is required before public publishing · Open profile'
+                : 'Public events require a paid publishing plan · View plans'}
             </button>
           )}
 
         {error && (
           <div className="form-error">
-            {error}
+            {
+              error
+            }
           </div>
         )}
 
         <footer className="modal-footer">
-          {!locked && form.id ? (
+          {!locked &&
+          form.id ? (
             <button
               className="danger-btn"
               onClick={() =>
-                onDelete(form.id)
+                onDelete(
+                  form.id
+                )
               }
             >
-              <Trash2 size={16} />
+              <Trash2
+                size={
+                  16
+                }
+              />
+
               Delete
             </button>
           ) : (
@@ -840,7 +1463,9 @@ export default function EventModal({
           <div>
             <button
               className="secondary-btn"
-              onClick={onClose}
+              onClick={
+                onClose
+              }
             >
               {locked
                 ? 'Close'
@@ -850,14 +1475,21 @@ export default function EventModal({
             {!locked && (
               <button
                 className="primary-btn"
-                onClick={save}
+                onClick={
+                  save
+                }
               >
                 {form.visibility ===
                   'shared' && (
-                  <Send size={15} />
+                  <Send
+                    size={
+                      15
+                    }
+                  />
                 )}
 
-                {form.visibility === 'shared'
+                {form.visibility ===
+                'shared'
                   ? form.id
                     ? 'Save & send'
                     : 'Add & send'

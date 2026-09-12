@@ -10,6 +10,8 @@ import {
 export default function PlansView({
   plan,
   onChoose,
+  isVerifiedMunicipality = false,
+  municipalityVerificationStatus = 'unverified',
 }) {
   const [loading, setLoading] =
     useState('')
@@ -50,7 +52,7 @@ export default function PlansView({
         </h2>
 
         <p>
-          Personal planning stays free. Publishing public events is reserved for paid plans.
+          Personal planning stays free. Public publishing is paid for creators and companies; verified municipalities publish municipal events free.
         </p>
       </div>
 
@@ -250,7 +252,11 @@ export default function PlansView({
 
       <div className="plans-note">
         <Globe2 size={15}/>
-        Public event publishing requires Cirilo Pro.
+        {isVerifiedMunicipality
+          ? 'Verified municipality: official municipal event publishing is free.'
+          : municipalityVerificationStatus === 'pending'
+            ? 'Municipality verification pending. Public municipal publishing unlocks after approval.'
+            : 'Public creator event publishing requires Cirilo Pro.'}
       </div>
     </section>
   )

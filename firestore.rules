@@ -8,13 +8,208 @@ service cloud.firestore {
     }
 
     function owner(uid) {
-      return signedIn() && request.auth.uid == uid;
+      return signedIn()
+        && request.auth.uid == uid;
+    }
+
+    function userData(uid) {
+      return get(
+        /databases/$(database)/documents/users/$(uid)
+      ).data;
+    }
+
+    function paidPublisher(uid) {
+      return userData(uid).plan == 'pro'
+        || userData(uid).plan == 'business';
+    }
+
+    function verifiedMunicipality(uid) {
+      return userData(uid).profileType == 'public'
+        && userData(uid).organizationType == 'municipality'
+        && userData(uid).municipalityVerificationStatus == 'verified';
+    }
+
+    function canPublishPublic(uid) {
+      return paidPublisher(uid)
+        || verifiedMunicipality(uid);
+    }
+
+    /*
+     * Public Cirilo ID ownership.
+     */
+    function ownsPublicCiriloId(ciriloId) {
+      return signedIn()
+        && userData(request.auth.uid).ciriloId == ciriloId;
+    }
+
+    /*
+     * Personal / Company / Public non-verified:
+     * free profile switching.
+     *
+     * Verified municipality:
+     * locked to Public + Municipality.
+     */
+    function validUserSelfUpdate() {
+      let wasVerifiedMunicipality =
+        resource.data.get(
+          'municipalityVerificationStatus',
+          'unverified'
+        ) == 'verified'
+        &&
+        resource.data.get(
+          'profileType',
+          'personal'
+        ) == 'public'
+        &&
+        resource.data.get(
+          'organizationType',
+          ''
+        ) == 'municipality';
+
+      let keepsMunicipalityIdentity =
+        request.resource.data.get(
+          'profileType',
+          'personal'
+        ) == 'public'
+        &&
+        request.resource.data.get(
+          'organizationType',
+          ''
+        ) == 'municipality';
+
+      let protectedFieldsUnchanged =
+        request.resource.data.get(
+          'plan',
+          'free'
+        )
+        ==
+        resource.data.get(
+          'plan',
+          'free'
+        )
+
+        &&
+
+        request.resource.data.get(
+          'stripeCustomerId',
+          ''
+        )
+        ==
+        resource.data.get(
+          'stripeCustomerId',
+          ''
+        )
+
+        &&
+
+        request.resource.data.get(
+          'stripeSubscriptionId',
+          ''
+        )
+        ==
+        resource.data.get(
+          'stripeSubscriptionId',
+          ''
+        )
+
+        &&
+
+        request.resource.data.get(
+          'stripeSubscriptionStatus',
+          ''
+        )
+        ==
+        resource.data.get(
+          'stripeSubscriptionStatus',
+          ''
+        )
+
+        &&
+
+        request.resource.data.get(
+          'municipalityVerificationStatus',
+          'unverified'
+        )
+        ==
+        resource.data.get(
+          'municipalityVerificationStatus',
+          'unverified'
+        )
+
+        &&
+
+        request.resource.data.get(
+          'municipalityVerifiedAt',
+          null
+        )
+        ==
+        resource.data.get(
+          'municipalityVerifiedAt',
+          null
+        )
+
+        &&
+
+        request.resource.data.get(
+          'municipalityVerifiedBy',
+          ''
+        )
+        ==
+        resource.data.get(
+          'municipalityVerifiedBy',
+          ''
+        )
+
+        &&
+
+        request.resource.data.get(
+          'municipalityRejectedAt',
+          null
+        )
+        ==
+        resource.data.get(
+          'municipalityRejectedAt',
+          null
+        )
+
+        &&
+
+        request.resource.data.get(
+          'municipalityRejectedBy',
+          ''
+        )
+        ==
+        resource.data.get(
+          'municipalityRejectedBy',
+          ''
+        );
+
+      return protectedFieldsUnchanged
+        &&
+        (
+          !wasVerifiedMunicipality
+          ||
+          keepsMunicipalityIdentity
+        );
+    }
+
+    function validPublicUserSelfUpdate() {
+      return request.resource.data
+        .diff(resource.data)
+        .affectedKeys()
+        .hasNone([
+          'municipalityVerificationStatus',
+          'municipalityVerifiedAt',
+          'municipalityVerifiedBy'
+        ]);
     }
 
     function threadExists(threadId) {
       return threadId is string
         && threadId.size() > 0
-        && exists(/databases/$(database)/documents/sharedThreads/$(threadId));
+        && exists(
+          /databases/$(database)/documents/sharedThreads/$(threadId)
+        );
     }
 
     function threadData(threadId) {
@@ -24,9 +219,18 @@ service cloud.firestore {
     }
 
     function receivedNote(data) {
-      return data.get('isReceivedShared', false) == true
-        || data.get('lockedForRecipient', false) == true
-        || data.get('receivedSnapshot', false) == true;
+      return data.get(
+        'isReceivedShared',
+        false
+      ) == true
+        || data.get(
+          'lockedForRecipient',
+          false
+        ) == true
+        || data.get(
+          'receivedSnapshot',
+          false
+        ) == true;
     }
 
     function validInboxLocalUpdate() {
@@ -77,7 +281,8 @@ service cloud.firestore {
           request.auth.uid
             == threadData(request.resource.data.threadId).organizerUid
           ||
-          threadData(request.resource.data.threadId).sharePolicy == 'shareable'
+          threadData(request.resource.data.threadId).sharePolicy
+            == 'shareable'
         );
     }
 
@@ -152,25 +357,68 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow create, read, update, delete: if owner(uid);
 
+      allow read, delete: if owner(uid);
+
+      allow create: if owner(uid)
+        && request.resource.data.plan == 'free'
+        && request.resource.data.get(
+          'municipalityVerificationStatus',
+          'unverified'
+        ) != 'verified';
+
+      allow update: if owner(uid)
+        && validUserSelfUpdate();
+
+      /*
+       * Calendar events
+       */
       match /events/{eventId} {
         allow read, write: if owner(uid);
       }
 
+      /*
+       * Cirilo contacts
+       *
+       * Used by invite picker / recent contacts.
+       */
+      match /contacts/{contactId} {
+        allow read, create, update, delete: if owner(uid);
+      }
+
+      /*
+       * Cirilo teams
+       *
+       * Used by invite picker / team management.
+       */
+      match /teams/{teamId} {
+        allow read, create, update, delete: if owner(uid);
+      }
+
+      /*
+       * Notes
+       */
       match /notes/{noteId} {
+
         allow read: if owner(uid);
+
         allow create: if owner(uid);
+
         allow update: if owner(uid)
           && (
             !receivedNote(resource.data)
             ||
             validReceivedNoteLocalUpdate()
           );
+
         allow delete: if owner(uid);
       }
 
+      /*
+       * Inbox
+       */
       match /inbox/{itemId} {
+
         allow read: if owner(uid);
 
         allow update: if owner(uid)
@@ -198,7 +446,11 @@ service cloud.firestore {
           );
       }
 
+      /*
+       * Tamba jobs
+       */
       match /tambaJobs/{jobId} {
+
         allow read: if owner(uid);
 
         allow create: if
@@ -212,7 +464,10 @@ service cloud.firestore {
         allow update: if
           (
             owner(uid)
-            && resource.data.get('localCopy', false) != true
+            && resource.data.get(
+              'localCopy',
+              false
+            ) != true
           )
           ||
           validTambaCreatorUpdate()
@@ -228,34 +483,61 @@ service cloud.firestore {
           );
       }
 
+      /*
+       * Tamba templates
+       */
       match /tambaTemplates/{templateId} {
-        allow read: if owner(uid);
-        allow create: if owner(uid);
-        allow update: if owner(uid);
-        allow delete: if owner(uid);
+        allow read, create, update, delete: if owner(uid);
       }
 
       /*
-      TALENTS
-      Private HR records owned by the current Cirilo user.
-      */
+       * Talents
+       */
       match /talents/{talentId} {
         allow read, create, update, delete: if owner(uid);
       }
     }
 
+    /*
+     * Public profile mirror.
+     */
     match /publicUsers/{ciriloId} {
-      allow read: if signedIn();
 
-      allow create, update: if signedIn()
-        && request.resource.data.uid == request.auth.uid;
+      allow read: if true;
 
-      allow delete: if signedIn()
-        && resource.data.uid == request.auth.uid;
+      allow create: if ownsPublicCiriloId(ciriloId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.ciriloId == ciriloId
+        && request.resource.data.get(
+          'municipalityVerificationStatus',
+          'unverified'
+        ) != 'verified';
+
+      allow update: if ownsPublicCiriloId(ciriloId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.ciriloId == ciriloId
+        && validPublicUserSelfUpdate();
+
+      allow delete: if ownsPublicCiriloId(ciriloId);
     }
 
+    /*
+     * Municipality verification.
+     * Readable by owner.
+     * Written only by trusted backend/admin logic.
+     */
+    match /organizationVerifications/{uid} {
+      allow read: if owner(uid);
+      allow create, update, delete: if false;
+    }
+
+    /*
+     * Cirilo ID reservation
+     */
     match /ciriloIds/{ciriloId} {
+
       allow get: if signedIn();
+
       allow list: if false;
 
       allow create: if signedIn()
@@ -264,7 +546,11 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    /*
+     * Shared event cards
+     */
     match /sharedCards/{token} {
+
       allow read: if resource.data.visibility == 'shared'
         && resource.data.revoked == false;
 
@@ -275,7 +561,11 @@ service cloud.firestore {
         && resource.data.senderUid == request.auth.uid;
     }
 
+    /*
+     * Shared notes
+     */
     match /sharedNotes/{token} {
+
       allow read: if resource.data.revoked == false;
 
       allow create: if signedIn()
@@ -296,8 +586,13 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    /*
+     * Shared conversation threads
+     */
     match /sharedThreads/{threadId} {
+
       allow get: if signedIn();
+
       allow list: if false;
 
       allow create: if signedIn()
@@ -343,6 +638,7 @@ service cloud.firestore {
       allow delete: if false;
 
       match /replies/{replyId} {
+
         allow read: if signedIn();
 
         allow create: if signedIn()
@@ -358,22 +654,38 @@ service cloud.firestore {
       }
     }
 
+    /*
+     * Public events
+     *
+     * Allowed for:
+     * - Pro
+     * - Business
+     * - Verified municipality
+     */
     match /publicEvents/{eventId} {
+
       allow read: if true;
 
       allow create: if signedIn()
-        && request.resource.data.ownerUid == request.auth.uid;
+        && request.resource.data.ownerUid == request.auth.uid
+        && canPublishPublic(request.auth.uid);
 
       allow update: if signedIn()
         && resource.data.ownerUid == request.auth.uid
-        && request.resource.data.ownerUid == request.auth.uid;
+        && request.resource.data.ownerUid == request.auth.uid
+        && canPublishPublic(request.auth.uid);
 
       allow delete: if signedIn()
         && resource.data.ownerUid == request.auth.uid;
     }
 
+    /*
+     * Public channels
+     */
     match /channels/{channelId} {
+
       allow read: if true;
+
       allow write: if signedIn();
     }
   }

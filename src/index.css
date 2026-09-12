@@ -3462,3 +3462,273 @@ main{padding:26px 30px 48px}
     max-width:176px !important;
   }
 }
+
+/* CIRILO V10.6 — PROFILE TYPE */
+.profile-card-badges{margin-left:auto;display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}.profile-card-badges .profile-plan{margin-left:0}.profile-type-badge{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:6px 9px;border-radius:999px;border:1px solid #e2e8ee;background:#f8fafc;color:#65717d;font-size:9px;font-weight:600}.profile-type-badge.public{background:#eef7ff;border-color:#dbeeff;color:#2768b6}.profile-type-badge.company{background:#f5f1ff;border-color:#e7defb;color:#6849a8}.profile-type-field{padding:2px 0 4px}.profile-type-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:2px}.profile-type-option{appearance:none;width:100%;min-height:94px;border:1px solid #e4ebf1;border-radius:15px;background:#f9fbfd;color:#68747f;padding:13px;display:flex;align-items:flex-start;gap:10px;text-align:left;transition:border-color .15s,background .15s,box-shadow .15s,transform .15s}.profile-type-option:hover{border-color:#d4e0ea;background:#fff;transform:translateY(-1px)}.profile-type-option.active{border-color:#bfd8ef;background:#eef7ff;color:#245fa9;box-shadow:0 5px 18px rgba(47,128,237,.07)}.profile-type-option>svg{flex:0 0 auto;margin-top:1px}.profile-type-option>span{min-width:0;display:grid;gap:4px}.profile-type-option strong{font-size:11px;font-weight:600;color:#1f2a34}.profile-type-option small{font-size:9px;line-height:1.45;color:#8a959f}.profile-type-safety{margin-top:10px;border:1px solid #e6edf3;border-radius:13px;padding:11px 12px;background:#fff;display:grid;gap:3px}.profile-type-safety strong{font-size:10px;font-weight:600;color:#33404b}.profile-type-safety small{font-size:9px;line-height:1.5;color:#89949e}.profile-type-safety.public{border-color:#dcecff;background:#f8fbff}.profile-type-safety.company{border-color:#e8e0f7;background:#fbf9ff}@media(max-width:760px){.profile-type-grid{grid-template-columns:1fr}.profile-type-option{min-height:0}.profile-card-badges{grid-column:1/-1;width:100%;justify-content:flex-start;margin-left:0}}
+
+/* =========================================================
+   CIRILO V10.7 — MUNICIPALITY VERIFICATION / ADMIN
+   ========================================================= */
+.organization-type-field select{
+  width:100%;
+  min-height:42px;
+  border:1px solid #e0e3e6;
+  border-radius:11px;
+  padding:10px 11px;
+  background:#f9fbfd;
+  color:#1c2024;
+}
+
+.municipality-verification-card{
+  border:1px solid #dcecff;
+  border-radius:18px;
+  background:#f8fbff;
+  padding:16px;
+}
+
+.municipality-verification-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+  margin-bottom:14px;
+}
+
+.municipality-verification-head>div{
+  display:grid;
+  gap:4px;
+}
+
+.municipality-verification-head strong{
+  font-size:14px;
+  font-weight:600;
+  color:#1d2b38;
+}
+
+.municipality-verification-head small{
+  font-size:9px;
+  color:#82909d;
+  line-height:1.5;
+}
+
+.verification-status{
+  flex:none;
+  border:1px solid #e4e9ee;
+  border-radius:999px;
+  padding:6px 9px;
+  font-size:9px;
+  color:#77838e;
+  background:#fff;
+}
+
+.verification-status.pending{
+  border-color:#f0dfb6;
+  background:#fffaf0;
+  color:#85691f;
+}
+
+.verification-status.verified{
+  border-color:#cae8d7;
+  background:#f4fbf7;
+  color:#397554;
+}
+
+.verification-status.rejected{
+  border-color:#efd4d4;
+  background:#fff7f7;
+  color:#9b4444;
+}
+
+.municipality-fields{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:11px;
+}
+
+.municipality-submit{
+  margin-top:12px;
+}
+
+.municipality-admin-note{
+  margin:11px 0 0;
+  padding:9px 10px;
+  border:1px solid #ebdcdc;
+  border-radius:10px;
+  background:#fffafa;
+  color:#8b5555;
+  font-size:10px;
+}
+
+.municipality-verified-note{
+  margin-top:12px;
+  border:1px solid #cee6d8;
+  border-radius:11px;
+  padding:10px 11px;
+  background:#f5fbf7;
+  color:#3d7657;
+  font-size:10px;
+  line-height:1.5;
+}
+
+.verified-municipality-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  vertical-align:middle;
+  margin-left:10px;
+  padding:5px 8px;
+  border:1px solid #d8eaff;
+  border-radius:999px;
+  background:#f3f9ff;
+  color:#2768b6;
+  font-size:10px;
+  font-weight:600;
+  letter-spacing:0;
+}
+
+.admin-verifications-view{
+  max-width:980px;
+  margin:0 auto;
+  padding:18px 0 44px;
+}
+
+.admin-verifications-intro{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:20px;
+  margin-bottom:18px;
+}
+
+.admin-verifications-intro h2{
+  margin:5px 0 7px;
+  font-size:34px;
+  font-weight:600;
+  letter-spacing:-.04em;
+}
+
+.admin-verifications-intro p{
+  margin:0;
+  color:#87939f;
+  font-size:12px;
+}
+
+.admin-verification-list{
+  display:grid;
+  gap:12px;
+}
+
+.admin-verification-card{
+  border:0;
+  border-radius:20px;
+  background:#fff;
+  box-shadow:0 10px 30px rgba(34,72,110,.055);
+  padding:18px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:18px;
+}
+
+.admin-verification-title{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin-bottom:14px;
+}
+
+.admin-verification-title>div{
+  display:grid;
+  gap:3px;
+}
+
+.admin-verification-title strong{
+  font-size:15px;
+  font-weight:600;
+}
+
+.admin-verification-title small{
+  font-size:9px;
+  color:#929da7;
+}
+
+.admin-verification-card dl{
+  margin:0;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px 18px;
+}
+
+.admin-verification-card dl>div{
+  min-width:0;
+  display:grid;
+  gap:2px;
+}
+
+.admin-verification-card dt{
+  font-size:8px;
+  text-transform:uppercase;
+  letter-spacing:.09em;
+  color:#a0a9b1;
+}
+
+.admin-verification-card dd{
+  margin:0;
+  font-size:10px;
+  color:#505a63;
+  overflow-wrap:anywhere;
+}
+
+.admin-verification-actions{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:8px;
+}
+
+.admin-verification-empty{
+  min-height:180px;
+  border-radius:18px;
+  background:#fff;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:8px;
+  color:#929da7;
+  font-size:11px;
+  box-shadow:0 10px 30px rgba(34,72,110,.04);
+}
+
+@media(max-width:760px){
+  .municipality-fields{
+    grid-template-columns:1fr;
+  }
+
+  .municipality-verification-head,
+  .admin-verifications-intro{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .admin-verification-card{
+    grid-template-columns:1fr;
+  }
+
+  .admin-verification-card dl{
+    grid-template-columns:1fr;
+  }
+
+  .admin-verification-actions{
+    flex-direction:row;
+  }
+
+  .admin-verification-actions button{
+    flex:1;
+  }
+
+  .verified-municipality-badge{
+    margin:7px 0 0;
+    display:flex;
+    width:max-content;
+  }
+}
+

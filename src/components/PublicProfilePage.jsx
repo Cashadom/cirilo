@@ -1,87 +1,298 @@
 import React from 'react'
-import { ArrowLeft, CalendarPlus, Copy, MapPin, Share2 } from 'lucide-react'
+
+import {
+  ArrowLeft,
+  BadgeCheck,
+  CalendarPlus,
+  Copy,
+  MapPin,
+  Share2,
+} from 'lucide-react'
+
 import PublicEventCard from './PublicEventCard'
 
-export default function PublicProfilePage({ profile, events = [], onBack, onAdd, onOpen }) {
-  const displayName = profile?.displayName || profile?.name || 'Cirilo user'
-  const ciriloId = profile?.ciriloId || ''
-  const photoURL = profile?.photoURL || ''
-  const shareUrl = window.location.href
-  const shareText = `${displayName} on Cirilo${ciriloId ? ` — @${ciriloId}` : ''}`
+export default function PublicProfilePage({
+  profile,
+  events = [],
+  onBack,
+  onAdd,
+  onOpen,
+}) {
+  const displayName =
+    profile?.displayName ||
+    profile?.name ||
+    'Cirilo user'
 
-  const copyProfile = async () => {
-    await navigator.clipboard?.writeText(shareUrl)
-  }
+  const ciriloId =
+    profile?.ciriloId ||
+    ''
 
-  const shareProfile = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: shareText, text: shareText, url: shareUrl })
-        return
-      } catch (error) {
-        if (error?.name === 'AbortError') return
-      }
+  const photoURL =
+    profile?.photoURL ||
+    ''
+
+  /*
+   * STRICT municipality test.
+   *
+   * Verification status alone is NEVER enough.
+   */
+  const isVerifiedMunicipality =
+    profile?.profileType ===
+      'public' &&
+    profile?.organizationType ===
+      'municipality' &&
+    profile
+      ?.municipalityVerificationStatus ===
+      'verified'
+
+  const publicDisplayName =
+    isVerifiedMunicipality
+      ? (
+          profile
+            ?.organizationName ||
+          displayName
+        )
+      : displayName
+
+  const shareUrl =
+    window.location.href
+
+  const shareText =
+    `${publicDisplayName} on Cirilo${
+      ciriloId
+        ? ` — @${ciriloId}`
+        : ''
+    }`
+
+  const copyProfile =
+    async () => {
+      await navigator.clipboard
+        ?.writeText(
+          shareUrl
+        )
     }
-    await copyProfile()
-  }
+
+  const shareProfile =
+    async () => {
+      if (
+        navigator.share
+      ) {
+        try {
+          await navigator.share({
+            title:
+              shareText,
+
+            text:
+              shareText,
+
+            url:
+              shareUrl,
+          })
+
+          return
+        } catch (error) {
+          if (
+            error?.name ===
+            'AbortError'
+          ) {
+            return
+          }
+        }
+      }
+
+      await copyProfile()
+    }
 
   return (
     <section className="public-profile-page">
-      <button className="public-profile-back" onClick={onBack}>
-        <ArrowLeft size={15} /> Back
+      <button
+        className="public-profile-back"
+
+        onClick={
+          onBack
+        }
+      >
+        <ArrowLeft
+          size={
+            15
+          }
+        />
+
+        Back
       </button>
 
       <header className="public-profile-hero">
         <div className="public-profile-avatar public-profile-avatar-photo">
           {photoURL ? (
-            <img src={photoURL} alt={displayName} />
+            <img
+              src={
+                photoURL
+              }
+
+              alt={
+                publicDisplayName
+              }
+            />
           ) : (
-            <span>{displayName.charAt(0).toUpperCase()}</span>
+            <span>
+              {publicDisplayName
+                .charAt(0)
+                .toUpperCase()}
+            </span>
           )}
         </div>
 
         <div className="public-profile-identity">
-          <span className="eyebrow">Public profile</span>
-          <h1>{displayName}</h1>
-          {ciriloId ? <p className="public-profile-handle">@{ciriloId}</p> : null}
-          {profile?.role ? <p className="public-profile-role">{profile.role}</p> : null}
+          <span className="eyebrow">
+            {isVerifiedMunicipality
+              ? 'Official public profile'
+              : 'Public profile'}
+          </span>
+
+          <h1>
+            {
+              publicDisplayName
+            }
+
+            {isVerifiedMunicipality && (
+              <span
+                className="verified-municipality-badge"
+
+                title="Verified municipality"
+              >
+                <BadgeCheck
+                  size={
+                    19
+                  }
+                />
+
+                Verified municipality
+              </span>
+            )}
+          </h1>
+
+          {ciriloId ? (
+            <p className="public-profile-handle">
+              @
+              {
+                ciriloId
+              }
+            </p>
+          ) : null}
+
+          {profile?.role ? (
+            <p className="public-profile-role">
+              {
+                profile.role
+              }
+            </p>
+          ) : null}
+
           {profile?.location ? (
             <p className="public-profile-location">
-              <MapPin size={13} /> {profile.location}
+              <MapPin
+                size={
+                  13
+                }
+              />
+
+              {
+                profile.location
+              }
             </p>
           ) : null}
         </div>
 
         <div className="public-profile-share">
-          <button className="secondary-btn" type="button" onClick={copyProfile}>
-            <Copy size={14} /> Copy link
+          <button
+            className="secondary-btn"
+
+            type="button"
+
+            onClick={
+              copyProfile
+            }
+          >
+            <Copy
+              size={
+                14
+              }
+            />
+
+            Copy link
           </button>
-          <button className="primary-btn" type="button" onClick={shareProfile}>
-            <Share2 size={14} /> Share
+
+          <button
+            className="primary-btn"
+
+            type="button"
+
+            onClick={
+              shareProfile
+            }
+          >
+            <Share2
+              size={
+                14
+              }
+            />
+
+            Share
           </button>
         </div>
       </header>
 
-      {profile?.bio ? <p className="public-profile-bio">{profile.bio}</p> : null}
+      {profile?.bio ? (
+        <p className="public-profile-bio">
+          {
+            profile.bio
+          }
+        </p>
+      ) : null}
 
       <div className="public-profile-section-head">
-        <span>Upcoming public events</span>
-        <small>{events.length} available</small>
+        <span>
+          Upcoming public events
+        </span>
+
+        <small>
+          {events.length}{' '}
+          available
+        </small>
       </div>
 
       <div className="public-grid">
         {events.length ? (
-          events.map(event => (
-            <PublicEventCard
-              key={event.publicId}
-              event={event}
-              onAdd={onAdd}
-              onOpen={onOpen}
-            />
-          ))
+          events.map(
+            event => (
+              <PublicEventCard
+                key={
+                  event.publicId
+                }
+
+                event={
+                  event
+                }
+
+                onAdd={
+                  onAdd
+                }
+
+                onOpen={
+                  onOpen
+                }
+              />
+            )
+          )
         ) : (
           <div className="profile-empty">
-            <CalendarPlus size={18} /> No public events yet.
+            <CalendarPlus
+              size={
+                18
+              }
+            />
+
+            No public events yet.
           </div>
         )}
       </div>
