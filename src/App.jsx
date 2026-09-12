@@ -269,7 +269,114 @@ export default function App(){
       sourceNoteTitle:noteTitle||'',
     })
   }
-  const addPublicToWeek=async event=>{if(!events.some(e=>e.sourcePublicId===event.publicId))await addEvent({id:crypto.randomUUID(),title:event.title,category:event.category,type:'event',date:event.date,startTime:event.startTime,endTime:event.endTime,location:event.location,people:'',notes:event.notes,reminder:event.reminder||'30 min before',priority:'normal',completed:false,visibility:'private',sharedBy:event.owner.name,sourcePublicId:event.publicId});setPublicOpen(null);setView('week');setAnchor(new Date(event.date+'T12:00:00'))}
+  const addPublicToWeek=async event=>{
+    if(!event)return
+
+    const sourcePublicId=event.publicId||event.id||`discover-${String(event.title||'event').toLowerCase().replace(/[^a-z0-9]+/g,'-')}-${event.date||today}`
+    const safeCategory=CATEGORIES[event.category]?event.category:'personal'
+    const safeDate=event.date||today
+
+    try{
+      const existing=events.find(item=>item.sourcePublicId===sourcePublicId)
+
+      const payload={
+        id:existing?.id||crypto.randomUUID(),
+        title:event.title||existing?.title||'Public event',
+        category:safeCategory,
+        type:'event',
+        date:safeDate,
+        startTime:event.startTime||existing?.startTime||'09:00',
+        endTime:event.endTime||existing?.endTime||'10:00',
+        location:event.location||existing?.location||'',
+        people:'',
+        notes:event.notes||event.description||existing?.notes||'',
+        reminder:event.reminder||existing?.reminder||'30 min before',
+        priority:'normal',
+        completed:false,
+        visibility:'private',
+        sharedBy:event.owner?.name||event.ownerName||event.host||existing?.sharedBy||'Cirilo',
+        sourcePublicId,
+        createdByUid:firebaseUser.uid,
+        createdByCiriloId:authProfile?.ciriloId||'',
+      }
+
+      if(existing){
+        await updateEvent(payload)
+      }else{
+        await addEvent(payload)
+      }
+
+      setActiveCats(current=>{
+        const next=new Set(current)
+        next.add(safeCategory)
+        return next
+      })
+
+      setPublicOpen(null)
+      setAnchor(new Date(`${safeDate}T12:00:00`))
+      setView('week')
+    }catch(error){
+      console.error('Could not add Discover event to Week:',error)
+      window.alert(`Could not add this event to your Week: ${error?.message||'Unknown error'}`)
+    }
+  }
+
+  const talentToWeek=(talent)=>{
+    const fullName=[talent?.firstName,talent?.lastName]
+      .filter(Boolean)
+      .join(' ')||'Candidate'
+
+    setView('week')
+
+    openNew({
+      title:`Interview — ${fullName}`,
+      category:'pro',
+      type:'event',
+      people:fullName,
+      location:talent?.location||'',
+      notes:[
+        talent?.jobTitle?`Role: ${talent.jobTitle}`:'',
+        talent?.phone?`Phone: ${talent.phone}`:'',
+        talent?.email?`Email: ${talent.email}`:'',
+      ].filter(Boolean).join('\n'),
+      visibility:'private',
+      sourceTalentId:talent?.id||'',
+      sourceTalentName:fullName,
+    })
+  }
+
+  const talentToNote=async(talent)=>{
+    const fullName=[talent?.firstName,talent?.lastName]
+      .filter(Boolean)
+      .join(' ')||'Candidate'
+
+    await saveNote(firebaseUser.uid,{
+      title:`Interview report — ${fullName}`,
+      universe:'pro',
+      visibility:'private',
+      sharePolicy:'private',
+      ownerUid:firebaseUser.uid,
+      ownerCiriloId:authProfile?.ciriloId||'',
+      localOwnerUid:firebaseUser.uid,
+      items:[{
+        id:crypto.randomUUID(),
+        kind:'text',
+        text:[
+          `Talent: ${fullName}`,
+          talent?.jobTitle?`Role: ${talent.jobTitle}`:'',
+          talent?.location?`Location: ${talent.location}`:'',
+          talent?.phone?`Phone: ${talent.phone}`:'',
+          talent?.email?`Email: ${talent.email}`:'',
+            '',
+          'Interview notes:',
+        ].filter(value=>value!==null&&value!==undefined).join('\n'),
+        status:'active',
+      }],
+    })
+
+    setView('notes')
+  }
+
   useEffect(()=>{const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();document.querySelector('.quick-add input')?.focus()}};addEventListener('keydown',h);return()=>removeEventListener('keydown',h)},[])
   const toggleCategory=key=>setActiveCats(prev=>{const next=new Set(prev);next.has(key)?next.delete(key):next.add(key);return next})
   const resize=(id,delta)=>{const event=events.find(e=>e.id===id);if(!event)return;const end=minutesFromTime(event.endTime)+delta;updateEvent({id,endTime:`${String(Math.floor(end/60)).padStart(2,'0')}:${String(end%60).padStart(2,'0')}`})}
@@ -385,6 +492,8 @@ export default function App(){
   onOpenJob={openTambaJob}
   onOpenTemplates={()=>setTambaTemplateOpen(true)}
   onCreateFromTemplate={createTambaFromTemplate}
+  onTalentToWeek={talentToWeek}
+  onTalentToNote={talentToNote}
 />}</main><EventModal open={modalOpen} draft={draft} readOnly={readOnly} canPublishPublic={canPublishPublic} onUpgrade={()=>{setModalOpen(false);setView('plans')}} onClose={()=>setModalOpen(false)} onSave={async payload=>{
   if(payload.visibility==='public'&&!canPublishPublic){
     setModalOpen(false)

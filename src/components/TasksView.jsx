@@ -10,7 +10,10 @@ import {
   RefreshCw,
   UserRound,
   Wrench,
+  UsersRound,
 } from 'lucide-react'
+import TalentsView from './TalentsView'
+import '../talents.css'
 
 const STATUS_ORDER = ['scheduled', 'in_progress', 'completed']
 
@@ -38,9 +41,12 @@ export default function TasksView({
   onOpenJob,
   onOpenTemplates,
   onCreateFromTemplate,
+  onTalentToWeek,
+  onTalentToNote,
 }) {
   const [tab, setTab] = useState('tasks')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [talentCreateSignal, setTalentCreateSignal] = useState(0)
 
   const filteredJobs = useMemo(() => {
     const sorted = [...jobs].sort((a, b) => {
@@ -72,16 +78,17 @@ export default function TasksView({
           <span className="eyebrow">Tasks & Tamba</span>
           <h2>Plan it. Assign it. Get it done.</h2>
           <p>
-            Keep personal tasks simple, and use Tamba Field Work for structured jobs,
-            checklists and assigned work in the real world.
+            Keep personal tasks simple, use Tamba Field Work for structured jobs, and Talents for candidate follow-up.
           </p>
         </div>
         <div className="tasks-tamba-top-actions">
-          {tab === 'tasks' ? (
+          {tab === 'tasks' && (
             <button className="primary-btn" onClick={onNewTask}>
               <Plus size={16} /> New task
             </button>
-          ) : (
+          )}
+
+          {tab === 'tamba' && (
             <>
               <button className="secondary-btn" onClick={onOpenTemplates}>
                 <FileCheck2 size={15} /> Templates
@@ -91,10 +98,19 @@ export default function TasksView({
               </button>
             </>
           )}
+
+          {tab === 'talents' && (
+            <button
+              className="primary-btn"
+              onClick={() => setTalentCreateSignal(value => value + 1)}
+            >
+              <Plus size={16} /> Add talent
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="tasks-tamba-tabs" role="tablist" aria-label="Tasks and Tamba">
+      <div className="tasks-tamba-tabs" role="tablist" aria-label="Tasks, Tamba and Talents">
         <button
           className={tab === 'tasks' ? 'active' : ''}
           onClick={() => setTab('tasks')}
@@ -110,6 +126,14 @@ export default function TasksView({
         >
           <Wrench size={15} />
           Tamba Field Work
+        </button>
+        <button
+          className={tab === 'talents' ? 'active' : ''}
+          onClick={() => setTab('talents')}
+          type="button"
+        >
+          <UsersRound size={15} />
+          Talents
         </button>
       </div>
 
@@ -270,6 +294,13 @@ export default function TasksView({
             )}
           </div>
         </>
+      )}
+      {tab === 'talents' && (
+        <TalentsView
+          createSignal={talentCreateSignal}
+          onAddInterview={onTalentToWeek}
+          onCreateNote={onTalentToNote}
+        />
       )}
     </section>
   )

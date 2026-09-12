@@ -1,0 +1,437 @@
+/* =========================================================
+   CIRILO — TALENTS
+   Scope: Tasks > Talents only
+   ========================================================= */
+
+.talents-view {
+  display: grid;
+  gap: 18px;
+}
+
+.talents-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.talent-filter-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.talent-filter-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.talent-filter-strip button {
+  border: 1px solid rgba(25, 45, 70, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  color: #536273;
+  min-height: 34px;
+  padding: 0 11px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.talent-filter-strip button span {
+  color: #8390a0;
+  font-size: 10px;
+}
+
+.talent-filter-strip button.active {
+  background: #eaf3ff;
+  border-color: #d8e9ff;
+  color: #2f80ed;
+}
+
+.talent-search {
+  min-width: 220px;
+  max-width: 280px;
+  min-height: 38px;
+  border: 1px solid rgba(25, 45, 70, 0.09);
+  background: #fff;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  color: #8a96a5;
+}
+
+.talent-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  color: #17212b;
+}
+
+.talent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.talent-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(25, 45, 70, 0.07);
+  background: #fff;
+  border-radius: 18px;
+  padding: 16px;
+  color: #17212b;
+  cursor: pointer;
+  font: inherit;
+  box-shadow: 0 10px 30px rgba(34, 60, 90, 0.04);
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease;
+}
+
+.talent-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(47, 128, 237, 0.2);
+  box-shadow: 0 14px 34px rgba(34, 60, 90, 0.08);
+}
+
+.talent-card-head {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+}
+
+.talent-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: #edf5ff;
+  color: #2f80ed;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.talent-card-name {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.talent-card-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.talent-card-name > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #748192;
+  font-size: 11px;
+}
+
+.talent-status,
+
+.talent-status {
+  padding: 5px 8px;
+  background: #f2f5f8;
+  color: #667384;
+  font-size: 10px;
+}
+
+.talent-status-interview {
+  background: #eaf3ff;
+  color: #2f80ed;
+}
+
+.talent-status-pending {
+  background: #fff7e8;
+  color: #a46a0a;
+}
+
+.talent-status-hired {
+  background: #eaf8f1;
+  color: #308b63;
+}
+
+.talent-status-rejected {
+  background: #fff0f0;
+  color: #bb5555;
+}
+
+.talent-card-meta {
+  min-height: 66px;
+  margin-top: 14px;
+  display: grid;
+  gap: 7px;
+}
+
+.talent-card-meta span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #718092;
+  font-size: 11px;
+}
+
+.talent-card-meta span svg {
+  flex: 0 0 auto;
+}
+
+.talent-card-foot {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(25, 45, 70, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+
+
+.talent-open-copy {
+  color: #8793a1;
+  font-size: 10px;
+}
+
+.talent-empty {
+  min-height: 220px;
+}
+
+.talent-modal {
+  width: min(980px, calc(100vw - 32px));
+  max-height: min(860px, calc(100vh - 32px));
+  overflow: auto;
+  border: 1px solid rgba(25, 45, 70, 0.08);
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 30px 90px rgba(20, 40, 65, 0.22);
+}
+
+.talent-modal-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 24px;
+  background: rgba(255, 255, 255, 0.97);
+  border-bottom: 1px solid rgba(25, 45, 70, 0.07);
+  backdrop-filter: blur(14px);
+}
+
+.talent-modal-head h2 {
+  margin: 3px 0 3px;
+}
+
+.talent-modal-head p {
+  margin: 0;
+  color: #7e8b9b;
+  font-size: 12px;
+}
+
+.talent-modal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 0;
+}
+
+.talent-modal-main {
+  min-width: 0;
+  padding: 24px;
+}
+
+.talent-side {
+  padding: 24px;
+  background: #f8fbfe;
+  border-left: 1px solid rgba(25, 45, 70, 0.06);
+}
+
+.talent-form-section + .talent-form-section,
+.talent-side-block + .talent-side-block {
+  margin-top: 24px;
+}
+
+.talent-form-section h3,
+.talent-side-block h3 {
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+
+.talent-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.talent-form-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+
+
+
+
+.talent-action-btn {
+  width: 100%;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.talent-error {
+  margin: 0 24px 16px;
+}
+
+.talent-modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(14px);
+}
+
+@media (max-width: 980px) {
+  .talent-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .talents-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .talent-search {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .talent-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .talent-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    border-radius: 20px;
+  }
+
+  .talent-modal-head {
+    padding: 18px;
+  }
+
+  .talent-modal-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .talent-modal-main,
+  .talent-side {
+    padding: 18px;
+  }
+
+  .talent-side {
+    border-left: 0;
+    border-top: 1px solid rgba(25, 45, 70, 0.06);
+  }
+
+  .talent-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .talent-form-grid .span-2 {
+    grid-column: auto;
+  }
+
+  .talent-modal-footer {
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .talent-modal-footer,
+  .talent-modal-footer > div {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+
+  .talent-modal-footer > div {
+    gap: 8px;
+  }
+
+  .talent-modal-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .talent-card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .talent-card-head {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .talent-avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .talent-status {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .talent-card-meta {
+    min-height: 0;
+  }
+
+  .talent-card-foot {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .talent-open-copy {
+    display: none;
+  }
+}
+
+/* Talents V3 — client comment + PDF export */
+.talent-client-comment {
+  margin-top: 14px;
+}
+
+.talent-export-help {
+  margin: 10px 0 0;
+  color: #8793a1;
+  font-size: 10px;
+  line-height: 1.5;
+}

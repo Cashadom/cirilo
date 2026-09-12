@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    /*
+    Cirilo private user files.
+    Keeps existing Tamba uploads working and adds Talent CV uploads.
+    */
+    match /users/{uid}/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == uid;
+    }
+  }
+}
