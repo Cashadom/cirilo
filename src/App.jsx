@@ -269,7 +269,46 @@ export default function App(){
       sourceNoteTitle:noteTitle||'',
     })
   }
-  const addPublicToWeek=async event=>{if(!events.some(e=>e.sourcePublicId===event.publicId))await addEvent({id:crypto.randomUUID(),title:event.title,category:event.category,type:'event',date:event.date,startTime:event.startTime,endTime:event.endTime,location:event.location,people:'',notes:event.notes,reminder:event.reminder||'30 min before',priority:'normal',completed:false,visibility:'private',sharedBy:event.owner.name,sourcePublicId:event.publicId});setPublicOpen(null);setView('week');setAnchor(new Date(event.date+'T12:00:00'))}
+  const addPublicToWeek=async event=>{
+    if(!event)return
+
+    const sourcePublicId=event.publicId||event.id||''
+    const alreadyAdded=sourcePublicId
+      ? events.some(existing=>existing.sourcePublicId===sourcePublicId)
+      : false
+
+    try{
+      if(!alreadyAdded){
+        await addEvent({
+          id:crypto.randomUUID(),
+          title:event.title||'Public event',
+          category:event.category||'personal',
+          type:'event',
+          date:event.date||today,
+          startTime:event.startTime||'09:00',
+          endTime:event.endTime||'10:00',
+          location:event.location||'',
+          people:'',
+          notes:event.notes||event.description||'',
+          reminder:event.reminder||'30 min before',
+          priority:'normal',
+          completed:false,
+          visibility:'private',
+          sharedBy:event.owner?.name||event.ownerName||event.host||'Cirilo',
+          sourcePublicId,
+          createdByUid:firebaseUser.uid,
+          createdByCiriloId:authProfile?.ciriloId||'',
+        })
+      }
+
+      setPublicOpen(null)
+      setView('week')
+      setAnchor(new Date(`${event.date||today}T12:00:00`))
+    }catch(error){
+      console.error('Could not add Discover event to Week:',error)
+      window.alert('Cirilo could not add this event to your Week. Please try again.')
+    }
+  }
   useEffect(()=>{const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();document.querySelector('.quick-add input')?.focus()}};addEventListener('keydown',h);return()=>removeEventListener('keydown',h)},[])
   const toggleCategory=key=>setActiveCats(prev=>{const next=new Set(prev);next.has(key)?next.delete(key):next.add(key);return next})
   const resize=(id,delta)=>{const event=events.find(e=>e.id===id);if(!event)return;const end=minutesFromTime(event.endTime)+delta;updateEvent({id,endTime:`${String(Math.floor(end/60)).padStart(2,'0')}:${String(end%60).padStart(2,'0')}`})}
