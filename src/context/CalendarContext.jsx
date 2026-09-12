@@ -185,9 +185,11 @@ export function CalendarProvider({ children }) {
       id: payload.id || crypto.randomUUID(),
     }
 
-    // Optimistic UI: show the event immediately.
     setEvents((current) => {
-      const withoutSameId = current.filter((item) => item.id !== event.id)
+      const withoutSameId = current.filter(
+        (item) => item.id !== event.id
+      )
+
       return [...withoutSameId, event].sort((a, b) =>
         `${a.date || ''}T${a.startTime || '00:00'}`.localeCompare(
           `${b.date || ''}T${b.startTime || '00:00'}`
@@ -199,10 +201,15 @@ export function CalendarProvider({ children }) {
       if (firebaseUser) {
         await saveEvent(firebaseUser.uid, event)
       }
+
       return event
     } catch (error) {
-      // Revert if Firestore write fails.
-      setEvents((current) => current.filter((item) => item.id !== event.id))
+      setEvents((current) =>
+        current.filter(
+          (item) => item.id !== event.id
+        )
+      )
+
       throw error
     }
   }
@@ -210,9 +217,10 @@ export function CalendarProvider({ children }) {
   const updateEvent = async (patch) => {
     if (!patch.id) return
 
-    const current = events.find(
-      (event) => event.id === patch.id
-    ) || {}
+    const current =
+      events.find(
+        (event) => event.id === patch.id
+      ) || {}
 
     const nextEvent = {
       ...current,
@@ -221,7 +229,11 @@ export function CalendarProvider({ children }) {
 
     setEvents((items) =>
       items
-        .map((item) => (item.id === patch.id ? nextEvent : item))
+        .map((item) =>
+          item.id === patch.id
+            ? nextEvent
+            : item
+        )
         .sort((a, b) =>
           `${a.date || ''}T${a.startTime || '00:00'}`.localeCompare(
             `${b.date || ''}T${b.startTime || '00:00'}`
@@ -230,23 +242,40 @@ export function CalendarProvider({ children }) {
     )
 
     if (firebaseUser) {
-      await saveEvent(firebaseUser.uid, nextEvent)
+      await saveEvent(
+        firebaseUser.uid,
+        nextEvent
+      )
     }
   }
 
   const deleteEvent = async (id) => {
-    const previous = events.find((event) => event.id === id)
+    const previous =
+      events.find(
+        (event) => event.id === id
+      )
 
-    setEvents((items) => items.filter((event) => event.id !== id))
+    setEvents((items) =>
+      items.filter(
+        (event) => event.id !== id
+      )
+    )
 
     try {
       if (firebaseUser) {
-        await removeEvent(firebaseUser.uid, id)
+        await removeEvent(
+          firebaseUser.uid,
+          id
+        )
       }
     } catch (error) {
       if (previous) {
-        setEvents((items) => [...items, previous])
+        setEvents((items) => [
+          ...items,
+          previous,
+        ])
       }
+
       throw error
     }
   }
@@ -269,13 +298,19 @@ export function CalendarProvider({ children }) {
 
     await Promise.all(
       events.map((event) =>
-        removeEvent(firebaseUser.uid, event.id)
+        removeEvent(
+          firebaseUser.uid,
+          event.id
+        )
       )
     )
 
     await Promise.all(
       seed.map((event) =>
-        saveEvent(firebaseUser.uid, event)
+        saveEvent(
+          firebaseUser.uid,
+          event
+        )
       )
     )
   }
